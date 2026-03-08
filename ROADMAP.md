@@ -21,6 +21,15 @@
   - Medication timings set by doctor → Patient gets reminders
   - Diet plans from doctor → Patient sees in Recovery page
   
+- **Medication Reminder System**:
+  - Daily repeating reminders based on doctor's timing schedule
+  - Reminder cycle runs for the number of days specified by doctor (e.g., 7 days, 14 days)
+  - Push notifications at each scheduled time (e.g., 8:00 AM, 2:00 PM, 9:00 PM)
+  - Automatic cycle completion tracking
+  - Missed dose alerts and compliance tracking
+  - Option to snooze or mark as taken
+  - End-of-cycle notification to patient and doctor
+  
 - **Two-way Communication**:
   - Patient symptom updates → Doctor dashboard
   - Medication compliance tracking → Doctor can monitor
@@ -54,10 +63,13 @@
 
 **Features to Implement:**
 - Real-time notifications (WebSockets/Firebase)
+- Medication reminder scheduler (cron jobs or Firebase Cloud Functions)
+- Daily repeating reminders with cycle tracking
 - Appointment scheduling system
 - Medical records storage (HIPAA compliant if needed)
 - Analytics dashboard for doctors
 - Patient health metrics tracking
+- Compliance reporting (missed doses, adherence rates)
 
 ## Phase 3: Advanced Features (Future)
 

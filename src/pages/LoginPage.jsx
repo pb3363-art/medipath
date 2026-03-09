@@ -63,6 +63,18 @@ export default function LoginPage({ onLogin }) {
             ))}
           </div>
         </div>
+        <div style={{
+          position: 'absolute',
+          bottom: '24px',
+          left: '32px',
+          fontSize: '10px',
+          color: 'rgba(255, 255, 255, 0.4)',
+          letterSpacing: '0.05em',
+          fontWeight: 500,
+          zIndex: 1
+        }}>
+          developed by pranay
+        </div>
       </div>
 
       {/* Right: Login form */}

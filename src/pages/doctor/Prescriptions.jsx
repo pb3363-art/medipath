@@ -4,25 +4,17 @@ import { ClipboardList, Plus, Trash2, ArrowRight, Save, UserSearch } from 'lucid
 import Navbar from '../../components/Navbar';
 import SOSButton from '../../components/SOSButton';
 import SOSModal from '../../components/SOSModal';
+import { db } from '../../lib/firebase';
+import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
 
-export default function Prescriptions({ user, onLogout, meds, setMeds, patientInfo, setPatientInfo }) {
+export default function Prescriptions({ user, onLogout }) {
   const [saved, setSaved] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
-  const [sosAlert, setSosAlert] = useState(false); // Changed to false by default
+  const [sosAlert, setSosAlert] = useState(false);
   const navigate = useNavigate();
 
-  // Local state for inputs to prevent re-render lag
-  const [localMeds, setLocalMeds] = useState(meds);
-  const [localPatientInfo, setLocalPatientInfo] = useState(patientInfo);
-
-  // Sync local state with parent on mount
-  useEffect(() => {
-    setLocalMeds(meds);
-  }, []);
-
-  useEffect(() => {
-    setLocalPatientInfo(patientInfo);
-  }, []);
+  const [localMeds, setLocalMeds] = useState([{ name: '', dosage: '', days: '', instruction: 'After meals' }]);
+  const [localPatientInfo, setLocalPatientInfo] = useState({ email: '', name: '', diagnosis: '', symptoms: '' });
 
   const addMed = () => setLocalMeds(prev => [...prev, { name: '', dosage: '', days: '', instruction: 'After meals' }]);
   const updateMed = (i, field, val) => {
@@ -32,12 +24,49 @@ export default function Prescriptions({ user, onLogout, meds, setMeds, patientIn
   };
   const removeMed = (i) => setLocalMeds(prev => prev.filter((_, mi) => mi !== i));
 
-  const handleSave = () => {
-    // Update parent state only on save
-    setMeds(localMeds);
-    setPatientInfo(localPatientInfo);
+  const handleSave = async () => {
+    // Validate
+    const validMeds = localMeds.filter(m => m.name.trim());
+    if (!localPatientInfo.email.trim() || validMeds.length === 0) {
+      alert('Please enter patient email and at least one medication.');
+      return;
+    }
+
     setSaved(true);
-    setTimeout(() => { setSaved(false); navigate('/doctor/timings'); }, 1000);
+
+    try {
+      // Create a prescription document in Firestore
+      const prescriptionData = {
+        doctorId: user.uid,
+        doctorName: user.name || user.email,
+        patientEmail: localPatientInfo.email.trim().toLowerCase(),
+        patientName: localPatientInfo.name.trim(),
+        diagnosis: localPatientInfo.diagnosis.trim(),
+        symptoms: localPatientInfo.symptoms.trim(),
+        medications: validMeds.map(m => ({
+          name: m.name,
+          dosage: m.dosage,
+          days: parseInt(m.days) || 1,
+          instruction: m.instruction,
+          times: [],      // Will be set in Timings page
+          taken: []       // Will be populated when times are set
+        })),
+        createdAt: new Date().toISOString(),
+        status: 'active'
+      };
+
+      const docRef = await addDoc(collection(db, 'prescriptions'), prescriptionData);
+
+      // Navigate to timings page with the prescription ID
+      setTimeout(() => {
+        setSaved(false);
+        navigate('/doctor/timings', { state: { prescriptionId: docRef.id, meds: validMeds } });
+      }, 800);
+    } catch (err) {
+      console.error('Error saving prescription:', err);
+      alert('Failed to save prescription. Please try again.');
+      setSaved(false);
+    }
   };
 
   return (
@@ -55,7 +84,7 @@ export default function Prescriptions({ user, onLogout, meds, setMeds, patientIn
               style={{ background: 'transparent', color: 'var(--text-muted)', fontSize: 14, padding: '0 4px' }}>✕</button>
           </div>
           <p className="text-sm mb-3" style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            Patient <strong>Ahmed Raza (P-00421)</strong> has sent an emergency alert.
+            A patient has sent an emergency alert.
           </p>
           <div className="flex gap-2">
             <button className="btn btn-danger btn-sm flex-1" onClick={() => setSosAlert(false)}>Respond</button>
@@ -80,17 +109,23 @@ export default function Prescriptions({ user, onLogout, meds, setMeds, patientIn
           </div>
           <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
             <div>
-              <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Patient ID</label>
-              <input value={localPatientInfo.id} onChange={e => setLocalPatientInfo(p => ({ ...p, id: e.target.value }))} placeholder="e.g. P-00421" />
+              <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Patient Email</label>
+              <input value={localPatientInfo.email} onChange={e => setLocalPatientInfo(p => ({ ...p, email: e.target.value }))} placeholder="patient@example.com" />
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Patient Name</label>
               <input value={localPatientInfo.name} onChange={e => setLocalPatientInfo(p => ({ ...p, name: e.target.value }))} placeholder="Full name" />
             </div>
           </div>
-          <div className="mt-3">
-            <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Diagnosis</label>
-            <input value={localPatientInfo.diagnosis} onChange={e => setLocalPatientInfo(p => ({ ...p, diagnosis: e.target.value }))} placeholder="Primary diagnosis / condition" />
+          <div className="grid gap-4 mt-3" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <div>
+              <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Diagnosis</label>
+              <input value={localPatientInfo.diagnosis} onChange={e => setLocalPatientInfo(p => ({ ...p, diagnosis: e.target.value }))} placeholder="Primary diagnosis / condition" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Symptoms</label>
+              <input value={localPatientInfo.symptoms} onChange={e => setLocalPatientInfo(p => ({ ...p, symptoms: e.target.value }))} placeholder="e.g. Fever, Cough, Fatigue..." />
+            </div>
           </div>
         </div>
 
@@ -147,7 +182,7 @@ export default function Prescriptions({ user, onLogout, meds, setMeds, patientIn
           </div>
         </div>
 
-        <button className="btn btn-primary btn-lg btn-full" onClick={handleSave}>
+        <button className="btn btn-primary btn-lg btn-full" onClick={handleSave} disabled={saved}>
           {saved ? (<><Save size={18} /> Saved! Moving to Timings...</>) : (<>Save & Set Timings <ArrowRight size={18} /></>)}
         </button>
       </div>

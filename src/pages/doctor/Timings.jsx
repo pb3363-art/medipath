@@ -1,20 +1,61 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Clock, Plus, X, ArrowRight, Save, Bell, Pill } from 'lucide-react';
 import Navbar from '../../components/Navbar';
 import SOSButton from '../../components/SOSButton';
 import SOSModal from '../../components/SOSModal';
+import { db } from '../../lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 
-export default function Timings({ user, onLogout, meds, timings, setTimings }) {
+export default function Timings({ user, onLogout }) {
   const [saved, setSaved] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Get the prescription ID and meds from the navigation state
+  const prescriptionId = location.state?.prescriptionId;
+  const meds = location.state?.meds || [];
+
+  const [timings, setTimings] = useState({});
 
   const setMedTimes = (medName, times) => setTimings(prev => ({ ...prev, [medName]: times }));
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!prescriptionId) {
+      alert('No prescription found. Please go back and create one first.');
+      return;
+    }
+
     setSaved(true);
-    setTimeout(() => { setSaved(false); navigate('/doctor/diet'); }, 1000);
+
+    try {
+      // Build updated medications array with times and taken arrays
+      const updatedMeds = meds.filter(m => m.name).map(m => {
+        const medTimes = (timings[m.name] || []).filter(Boolean);
+        return {
+          name: m.name,
+          dosage: m.dosage,
+          days: parseInt(m.days) || 1,
+          instruction: m.instruction,
+          times: medTimes,
+          taken: medTimes.map(() => false) // Initialize all as not taken
+        };
+      });
+
+      // Update the Firestore prescription document with timings
+      const prescRef = doc(db, 'prescriptions', prescriptionId);
+      await updateDoc(prescRef, { medications: updatedMeds });
+
+      setTimeout(() => {
+        setSaved(false);
+        navigate('/doctor/diet', { state: { prescriptionId } });
+      }, 1000);
+    } catch (err) {
+      console.error('Error saving timings:', err);
+      alert('Failed to save timings. Please try again.');
+      setSaved(false);
+    }
   };
 
   return (
@@ -26,6 +67,14 @@ export default function Timings({ user, onLogout, meds, timings, setTimings }) {
           <h1>Set Medication Timings</h1>
           <p>Configure exact reminder times for each medication</p>
         </div>
+
+        {!prescriptionId && (
+          <div className="med-card mb-5 fade-in" style={{ borderLeft: '4px solid var(--warning)', padding: '20px' }}>
+            <p className="text-sm" style={{ color: 'var(--warning)' }}>
+              ⚠️ No prescription found. Please <button onClick={() => navigate('/doctor/prescribe')} style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>write a prescription</button> first.
+            </p>
+          </div>
+        )}
 
         <div className="flex flex-col gap-4 mb-6">
           {meds.filter(m => m.name).map((med, i) => {
@@ -88,7 +137,7 @@ export default function Timings({ user, onLogout, meds, timings, setTimings }) {
           })}
         </div>
 
-        <button className="btn btn-primary btn-lg btn-full" onClick={handleSave}>
+        <button className="btn btn-primary btn-lg btn-full" onClick={handleSave} disabled={saved || !prescriptionId}>
           {saved ? (<><Save size={18} /> Timings Saved!</>) : (<>Confirm Timings & Set Diet Plan <ArrowRight size={18} /></>)}
         </button>
       </div>

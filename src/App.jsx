@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DoctorMatch from './pages/patient/DoctorMatch';
@@ -8,73 +8,116 @@ import Prescriptions from './pages/doctor/Prescriptions';
 import Timings from './pages/doctor/Timings';
 import DietPlan from './pages/doctor/DietPlan';
 
+import { auth, db } from './lib/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+
+// Route guard — must be declared outside App to avoid re-creation on each render
+function RequireAuth({ children, requiredRole, user, loadingAuth }) {
+  if (loadingAuth) return null;
+  if (!user) return <Navigate to="/" replace />;
+  if (requiredRole && user.role !== requiredRole) return <Navigate to="/" replace />;
+  return children;
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+
   const [selectedDoctor, setSelectedDoctor] = useState(null);
-  const [prescriptions, setPrescriptions] = useState([
-    { id: 1, name: 'Paracetamol 500mg', times: ['08:00 AM', '02:00 PM', '09:00 PM'], instruction: 'After meals', days: 5, taken: [false, false, false] },
-    { id: 2, name: 'Amoxicillin 250mg', times: ['07:00 AM', '07:00 PM'], instruction: 'Before meals', days: 7, taken: [false, false] },
-    { id: 3, name: 'Vitamin C 1000mg', times: ['09:00 AM'], instruction: 'After breakfast', days: 14, taken: [false] },
-  ]);
 
-  // Doctor state
-  const [meds, setMeds] = useState([{ name: '', dosage: '', days: '', instruction: 'After meals' }]);
-  const [timings, setTimings] = useState({});
-  const [patientInfo, setPatientInfo] = useState({ id: '', name: '', diagnosis: '' });
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const docRef = doc(db, 'users', firebaseUser.uid);
+          const docSnap = await getDoc(docRef);
+          const localRole = localStorage.getItem('medai_role');
+          if (docSnap.exists()) {
+            const userData = docSnap.data();
+            setUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              name: userData.name || firebaseUser.displayName,
+              // Use localRole if available (it was just set during login), otherwise db role, otherwise patient
+              role: localRole || userData.role || 'patient'
+            });
+          } else {
+            console.warn('No user document found in Firestore. Defaulting to local role.');
+            setUser({ 
+              uid: firebaseUser.uid, 
+              email: firebaseUser.email, 
+              name: firebaseUser.displayName, 
+              role: localRole || 'patient' 
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+          setUser({ uid: firebaseUser.uid, email: firebaseUser.email, name: firebaseUser.displayName, role: 'patient' });
+        }
+      } else {
+        setUser(null);
+      }
+      setLoadingAuth(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
-  const handleLogout = () => {
-    setUser(null);
+  const handleLogout = async () => {
+    await signOut(auth);
     setSelectedDoctor(null);
   };
 
-  // Route guard
-  const RequireAuth = ({ children, requiredRole }) => {
-    if (!user) return <Navigate to="/" replace />;
-    if (requiredRole && user.role !== requiredRole) return <Navigate to="/" replace />;
-    return children;
-  };
+
+  if (loadingAuth) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center" style={{ background: 'var(--bg-main)' }}>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-full border-4 border-[var(--primary)] border-t-transparent animate-spin"></div>
+          <div className="text-[var(--text-muted)] font-semibold text-sm">Initializing MedAI...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={
           user ? <Navigate to={user.role === 'patient' ? '/patient/match' : '/doctor/prescribe'} replace /> :
-          <LoginPage onLogin={setUser} />
+            <LoginPage />
         } />
 
         {/* Patient Routes */}
         <Route path="/patient/match" element={
-          <RequireAuth requiredRole="patient">
+          <RequireAuth requiredRole="patient" user={user} loadingAuth={loadingAuth}>
             <DoctorMatch user={user} onLogout={handleLogout} onSelectDoctor={setSelectedDoctor} />
           </RequireAuth>
         } />
         <Route path="/patient/medications" element={
-          <RequireAuth requiredRole="patient">
-            <Medications user={user} onLogout={handleLogout} selectedDoctor={selectedDoctor}
-              prescriptions={prescriptions} setPrescriptions={setPrescriptions} />
+          <RequireAuth requiredRole="patient" user={user} loadingAuth={loadingAuth}>
+            <Medications user={user} onLogout={handleLogout} selectedDoctor={selectedDoctor} />
           </RequireAuth>
         } />
         <Route path="/patient/recovery" element={
-          <RequireAuth requiredRole="patient">
+          <RequireAuth requiredRole="patient" user={user} loadingAuth={loadingAuth}>
             <Recovery user={user} onLogout={handleLogout} selectedDoctor={selectedDoctor} />
           </RequireAuth>
         } />
 
         {/* Doctor Routes */}
         <Route path="/doctor/prescribe" element={
-          <RequireAuth requiredRole="doctor">
-            <Prescriptions user={user} onLogout={handleLogout}
-              meds={meds} setMeds={setMeds} patientInfo={patientInfo} setPatientInfo={setPatientInfo} />
+          <RequireAuth requiredRole="doctor" user={user} loadingAuth={loadingAuth}>
+            <Prescriptions user={user} onLogout={handleLogout} />
           </RequireAuth>
         } />
         <Route path="/doctor/timings" element={
-          <RequireAuth requiredRole="doctor">
-            <Timings user={user} onLogout={handleLogout}
-              meds={meds} timings={timings} setTimings={setTimings} />
+          <RequireAuth requiredRole="doctor" user={user} loadingAuth={loadingAuth}>
+            <Timings user={user} onLogout={handleLogout} />
           </RequireAuth>
         } />
         <Route path="/doctor/diet" element={
-          <RequireAuth requiredRole="doctor">
+          <RequireAuth requiredRole="doctor" user={user} loadingAuth={loadingAuth}>
             <DietPlan user={user} onLogout={handleLogout} />
           </RequireAuth>
         } />

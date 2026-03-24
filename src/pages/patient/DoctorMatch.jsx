@@ -5,7 +5,6 @@ import Navbar from '../../components/Navbar';
 import SOSButton from '../../components/SOSButton';
 import SOSModal from '../../components/SOSModal';
 import { SYMPTOM_DOCTOR_MAP, SYMPTOM_CATEGORIES } from '../../data/symptoms';
-import { DOCTORS_DB } from '../../data/doctors';
 import { matchDoctors } from '../../utils/bayesian';
 
 export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
@@ -28,14 +27,17 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
     }
   };
 
-  const searchDoctors = () => {
+  const searchDoctors = async () => {
     if (!selectedSymptoms.length) return;
     setSearching(true);
-    setTimeout(() => {
-      const matched = matchDoctors(selectedSymptoms, SYMPTOM_DOCTOR_MAP, DOCTORS_DB);
+    try {
+      const matched = await matchDoctors(selectedSymptoms, SYMPTOM_DOCTOR_MAP);
       setMatchedDoctors(matched);
+    } catch (err) {
+      console.error("Match error:", err);
+    } finally {
       setSearching(false);
-    }, 1500);
+    }
   };
 
   const selectDoctor = (doc) => {
@@ -103,12 +105,12 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
 
           {/* Custom Symptom Input */}
           <div className="flex gap-3 mb-5">
-            <input 
-              value={customSymptom} 
+            <input
+              value={customSymptom}
               onChange={e => setCustomSymptom(e.target.value)}
               placeholder="Add custom symptom..."
               onKeyDown={e => e.key === 'Enter' && addCustomSymptom()}
-              style={{ 
+              style={{
                 flex: 1,
                 padding: '12px 20px',
                 borderRadius: '25px',
@@ -116,10 +118,10 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
                 background: 'transparent',
                 color: 'var(--text-primary)',
                 fontSize: '0.9rem',
-              }} 
+              }}
             />
-            <button 
-              className="btn btn-primary" 
+            <button
+              className="btn btn-primary"
               onClick={addCustomSymptom}
               style={{
                 padding: '12px 28px',
@@ -139,9 +141,9 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
               </div>
               <div className="flex flex-wrap gap-2">
                 {selectedSymptoms.map(s => (
-                  <span key={s} className="badge badge-primary flex items-center gap-2" 
-                    style={{ 
-                      padding: '8px 14px', 
+                  <span key={s} className="badge badge-primary flex items-center gap-2"
+                    style={{
+                      padding: '8px 14px',
                       fontSize: '0.85rem',
                       borderRadius: '20px',
                       fontWeight: 600,
@@ -161,7 +163,7 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
         <button className="btn btn-primary btn-lg btn-full mb-8 fade-in"
           onClick={searchDoctors}
           disabled={!selectedSymptoms.length || searching}
-          style={{ 
+          style={{
             opacity: selectedSymptoms.length ? 1 : 0.5,
             padding: '16px',
             fontSize: '1rem',
@@ -208,7 +210,7 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
                       <div className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>
                         {doc.specialty}
                       </div>
-                      
+
                       <div className="flex flex-wrap gap-3 text-sm mb-3" style={{ color: 'var(--text-muted)' }}>
                         <span className="flex items-center gap-1">
                           <MapPin size={14} /> {doc.city}
@@ -220,7 +222,7 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
                           <Award size={14} /> {doc.yearsExperience} years
                         </span>
                       </div>
-                      
+
                       <div className="flex gap-2 flex-wrap">
                         <span className={`badge ${doc.available ? 'badge-success' : 'badge-danger'}`}>
                           {doc.available ? '● Available Now' : '● Busy'}

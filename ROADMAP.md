@@ -78,6 +78,15 @@
 - Predictive health analytics
 - Medication interaction warnings
 - Personalized recovery recommendations
+- **AI-Powered Diet Plan Generator**
+  - Analyze patient symptoms and medical conditions
+  - Generate personalized diet recommendations (what to eat)
+  - Identify foods to avoid based on symptoms/conditions
+  - Consider allergies and dietary restrictions
+  - Provide meal suggestions and recipes
+  - Update diet plans dynamically as symptoms change
+  - Integration with doctor's prescribed diet plans
+  - Nutritional value tracking and recommendations
 
 ### Communication Features
 - In-app video consultations
@@ -101,8 +110,9 @@
 2. **High Priority**: Doctor prescription → Patient portal sync
 3. **Medium Priority**: Real-time notifications
 4. **Medium Priority**: Appointment scheduling
-5. **Low Priority**: Video consultations
-6. **Low Priority**: Mobile app
+5. **Medium Priority**: AI diet plan generator (symptom-based)
+6. **Low Priority**: Video consultations
+7. **Low Priority**: Mobile app
 
 ## Notes
 - Database choice depends on client requirements and scale

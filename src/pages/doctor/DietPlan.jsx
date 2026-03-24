@@ -1,18 +1,52 @@
 import { useState } from 'react';
-import { UtensilsCrossed, Dumbbell, Send, CheckCircle2 } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { UtensilsCrossed, Dumbbell, Send, CheckCircle2, PlayCircle } from 'lucide-react';
 import Navbar from '../../components/Navbar';
 import SOSButton from '../../components/SOSButton';
 import SOSModal from '../../components/SOSModal';
+import { db } from '../../lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { RECOVERY_VIDEOS, getVideosForSpecialty } from '../../data/videos';
 
 export default function DietPlan({ user, onLogout }) {
   const [diet, setDiet] = useState({ foods: '', avoid: '', notes: '' });
   const [exercise, setExercise] = useState('');
+  const [selectedVideos, setSelectedVideos] = useState([]);
   const [saved, setSaved] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
 
-  const handleSubmit = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const prescriptionId = location.state?.prescriptionId;
+  
+  const recommendedVideos = getVideosForSpecialty(user?.specialty || 'General Medicine');
+  const availableVideos = recommendedVideos.length > 0 ? recommendedVideos : RECOVERY_VIDEOS.slice(0, 5);
+
+  const handleToggleVideo = (vidId) => {
+    setSelectedVideos(prev => 
+      prev.includes(vidId) ? prev.filter(id => id !== vidId) : [...prev, vidId]
+    );
+  };
+
+  const handleSubmit = async () => {
+    if (!prescriptionId) {
+      alert("No prescription found. Cannot save plan. Please go back.");
+      return;
+    }
     setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    try {
+      const prescRef = doc(db, 'prescriptions', prescriptionId);
+      await updateDoc(prescRef, { 
+        diet: diet, 
+        exercise: exercise,
+        recoveryVideos: selectedVideos
+      });
+      setTimeout(() => navigate('/doctor/prescribe'), 3000);
+    } catch (err) {
+      console.error(err);
+      alert("Error saving diet and recovery plan.");
+      setSaved(false);
+    }
   };
 
   return (
@@ -60,7 +94,6 @@ export default function DietPlan({ user, onLogout }) {
           </div>
         </div>
 
-        {/* Exercise */}
         <div className="med-card mb-6 fade-in" style={{ borderLeft: '4px solid var(--primary)' }}>
           <div className="flex items-center gap-2 mb-4">
             <Dumbbell size={18} color="var(--primary)" />
@@ -69,6 +102,29 @@ export default function DietPlan({ user, onLogout }) {
           <textarea value={exercise} onChange={e => setExercise(e.target.value)}
             placeholder="e.g. 20-min light walk morning, avoid strenuous exercise for 7 days, breathing exercises 2x daily..."
             rows={4} />
+        </div>
+
+        {/* Recovery Videos */}
+        <div className="med-card mb-6 fade-in" style={{ borderLeft: '4px solid var(--warning)' }}>
+          <div className="flex items-center gap-2 mb-4">
+            <PlayCircle size={18} color="var(--warning)" />
+            <h3 className="font-bold">Recommended Recovery Videos</h3>
+          </div>
+          <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Select rehabilitation videos to include in the patient's recovery portal.</p>
+          <div className="flex flex-col gap-3">
+            {availableVideos.slice(0, 5).map(v => (
+              <div key={v.id} className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--bg-section)', border: '1px solid var(--border)' }}>
+                <div>
+                  <div className="font-bold text-sm">{v.title}</div>
+                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{v.duration} · {v.category}</div>
+                </div>
+                <button className={`btn btn-sm ${selectedVideos.includes(v.id) ? 'btn-danger' : 'btn-outline'}`}
+                  onClick={() => handleToggleVideo(v.id)}>
+                  {selectedVideos.includes(v.id) ? 'Remove' : 'Select'}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Submit */}

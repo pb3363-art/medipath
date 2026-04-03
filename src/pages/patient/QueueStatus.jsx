@@ -37,6 +37,8 @@ export default function QueueStatus({ user, onLogout }) {
     navigate('/patient/medications');
   };
 
+  // Manual "Acknowledge & Proceed" flow
+  /*
   useEffect(() => {
     if (queueData && queueData.status !== 'waiting') {
       const timer = setTimeout(() => {
@@ -45,6 +47,7 @@ export default function QueueStatus({ user, onLogout }) {
       return () => clearTimeout(timer);
     }
   }, [queueData, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
+  */
 
   if (!queueData) {
     return (

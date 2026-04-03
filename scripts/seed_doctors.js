@@ -1,3 +1,4 @@
+
 import fs from 'fs';
 import csv from 'csv-parser';
 import { initializeApp } from 'firebase/app';
@@ -56,5 +57,6 @@ fs.createReadStream(CSV_PATH)
         }
 
         console.log(`Successfully seeded ${count} doctors into Firestore!`);
+        // eslint-disable-next-line no-undef
         process.exit(0);
     });

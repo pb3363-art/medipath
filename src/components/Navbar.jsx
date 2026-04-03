@@ -22,9 +22,9 @@ export default function Navbar({ user, currentStep, onLogout }) {
       <StepProgress current={currentStep} role={user.role} />
 
       <div className="flex items-center gap-3">
-        <div className="text-right">
-          <div className="text-sm font-semibold">{isDoctor ? 'Dr. ' : ''}{user.name}</div>
-          <div className="text-xs" style={{ color: 'var(--text-muted)' }}>ID: {user.id}</div>
+        <div className="flex flex-col items-end">
+          <div className="text-sm font-bold leading-tight">{isDoctor ? 'Dr. ' : ''}{user.name}</div>
+          <div className="text-[10px] text-[var(--text-muted)] font-mono">{user.email}</div>
         </div>
         <button className="btn btn-ghost btn-sm" onClick={() => { onLogout(); navigate('/'); }}>
           <LogOut size={14} />

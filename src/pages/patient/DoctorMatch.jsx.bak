@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Star, MapPin, Award, Users, ChevronRight, Plus, X } from 'lucide-react';
 import Navbar from '../../components/Navbar';
@@ -21,29 +21,8 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
   useEffect(() => {
     if (localStorage.getItem('medai_current_queue')) {
       navigate('/patient/queue-status');
-      return;
     }
-
-    // Check if user already got past Phase 1 and has medications
-    // const checkUserPrescriptions = async () => {
-    //   if (user?.email) {
-    //     try {
-    //       const q = query(
-    //         collection(db, 'prescriptions'),
-    //         where('patientEmail', '==', user.email.toLowerCase()),
-    //         where('status', '==', 'active')
-    //       );
-    //       const snap = await getDocs(q);
-    //       if (!snap.empty) {
-    //         navigate('/patient/medications');
-    //       }
-    //     } catch (e) {
-    //       console.error('Error checking active prescriptions:', e);
-    //     }
-    //   }
-    // };
-    // checkUserPrescriptions();
-  }, [navigate, user?.email]);
+  }, [navigate]);
 
   const toggleSymptom = (s) => {
     setSelectedSymptoms(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
@@ -75,9 +54,9 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
     setLoadingDoctor(true);
     try {
       const queueData = {
-        patientId: user?.uid || 'unknown',
-        patientEmail: (user?.email || '').toLowerCase(),
-        patientName: user?.name || user?.email || 'Unknown Patient',
+        patientId: user.uid,
+        patientEmail: user.email,
+        patientName: user.name || user.email,
         doctorId: doc.id,
         doctorName: doc.name,
         status: 'waiting',

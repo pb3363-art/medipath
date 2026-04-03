@@ -18,28 +18,48 @@ export default function Medications({ user, onLogout, selectedDoctor }) {
 
   // Real-time listener for prescriptions assigned to this patient
   useEffect(() => {
-    if (!user?.email) return;
+    const email = (user?.email || '').toLowerCase().trim();
+    const uid = user?.uid;
+    if (!email && !uid) return;
 
+    console.log('Listening for prescriptions for:', email, uid);
+
+    // We search by patientEmail as primary, but we'll also filter locally for patientId if possible
+    // To be perfectly robust, we'll listen to the whole collection for this user's email
     const q = query(
       collection(db, 'prescriptions'),
-      where('patientEmail', '==', user.email.toLowerCase()),
+      where('patientEmail', '==', email),
       where('status', '==', 'active')
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = [];
-      snapshot.forEach((docSnap) => {
-        data.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      setPrescriptions(data);
-      setLoading(false);
-    }, (error) => {
-      console.error('Error listening to prescriptions:', error);
-      setLoading(false);
-    });
+    // Fallback query by UID
+    const qUid = query(
+      collection(db, 'prescriptions'),
+      where('patientId', '==', uid),
+      where('status', '==', 'active')
+    );
 
-    return () => unsubscribe();
-  }, [user?.email]);
+    const handleSnapshot = (snapshot, source) => {
+      setPrescriptions(prev => {
+        const newData = [...prev];
+        snapshot.forEach((docSnap) => {
+          if (!newData.some(p => p.id === docSnap.id)) {
+            newData.push({ id: docSnap.id, ...docSnap.data() });
+          }
+        });
+        return newData;
+      });
+      setLoading(false);
+    };
+
+    const unsubEmail = onSnapshot(q, (s) => handleSnapshot(s, 'email'));
+    const unsubUid = onSnapshot(qUid, (s) => handleSnapshot(s, 'uid'));
+
+    return () => {
+      unsubEmail();
+      unsubUid();
+    };
+  }, [user?.email, user?.uid]);
 
   // Notification setup and polling
   useEffect(() => {
@@ -163,9 +183,16 @@ export default function Medications({ user, onLogout, selectedDoctor }) {
           <div className="med-card fade-in text-center" style={{ padding: '48px 24px' }}>
             <Pill size={48} style={{ color: 'var(--text-muted)', margin: '0 auto 16px' }} />
             <h3 className="font-bold mb-2">No Active Prescriptions</h3>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-              Your doctor hasn't prescribed any medications yet, or they haven't linked your email address.
+            <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
+              No treatments found for <strong>{(user?.email || '').toLowerCase()}</strong>.
+              Please ensure your doctor has prescribed medicines specifically to this email address.
             </p>
+            <button 
+              className="btn btn-outline btn-sm" 
+              onClick={() => window.location.reload()}
+              style={{ color: 'var(--primary)', borderColor: 'var(--primary)' }}>
+              Check for Updates
+            </button>
           </div>
         ) : (
           <>

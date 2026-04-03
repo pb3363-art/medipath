@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ClipboardList, Plus, Trash2, ArrowRight, Save, UserSearch } from 'lucide-react';
 import Navbar from '../../components/Navbar';
 import SOSButton from '../../components/SOSButton';
 import SOSModal from '../../components/SOSModal';
 import { db } from '../../lib/firebase';
-import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc } from 'firebase/firestore';
 
 export default function Prescriptions({ user, onLogout }) {
   const [saved, setSaved] = useState(false);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { Stethoscope, User, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
 import { auth, db, googleProvider } from '../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signInWithPopup } from 'firebase/auth';
@@ -15,7 +15,6 @@ export default function LoginPage() {
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
   const handleSubmit = async () => {
     if (!email.trim() || !password.trim() || (!isLogin && !name.trim())) {
@@ -157,20 +156,26 @@ export default function LoginPage() {
             {[
               { val: 'patient', icon: <User size={16} />, label: 'Patient' },
               { val: 'doctor', icon: <Stethoscope size={16} />, label: 'Doctor' },
+              { val: 'admin', icon: <ShieldCheck size={16} />, label: 'Admin' },
             ].map(r => (
               <button key={r.val} className="btn flex-1"
                 onClick={() => setRole(r.val)}
                 style={{
                   padding: '12px',
-                  background: role === r.val ? (r.val === 'doctor' ? 'var(--primary)' : 'var(--success)') : 'transparent',
+                  background: role === r.val ? (
+                    r.val === 'admin' ? '#8b5cf6' : 
+                    r.val === 'doctor' ? 'var(--primary)' : 'var(--success)'
+                  ) : 'transparent',
                   color: role === r.val ? 'white' : 'var(--text-muted)',
                   borderRadius: '10px',
                   fontWeight: 600,
                   transition: 'all 0.25s',
                   boxShadow: role === r.val ? 'var(--shadow-sm)' : 'none',
                 }}>
-                {r.icon}
-                {r.label} {isLogin ? 'Login' : 'Sign Up'}
+                <div className="flex items-center justify-center gap-1.5" style={{ whiteSpace: 'nowrap' }}>
+                  {r.icon}
+                  {r.label}
+                </div>
               </button>
             ))}
           </div>
@@ -228,7 +233,10 @@ export default function LoginPage() {
             onClick={handleSubmit}
             disabled={loading}
             style={{
-              background: loading ? 'var(--border)' : role === 'doctor' ? 'var(--primary)' : 'var(--success)',
+              background: loading ? 'var(--border)' : (
+                role === 'admin' ? '#8b5cf6' :
+                role === 'doctor' ? 'var(--primary)' : 'var(--success)'
+              ),
               color: 'white',
               fontWeight: 700,
               fontSize: '0.9375rem',

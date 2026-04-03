@@ -7,6 +7,8 @@ import Recovery from './pages/patient/Recovery';
 import Prescriptions from './pages/doctor/Prescriptions';
 import Timings from './pages/doctor/Timings';
 import DietPlan from './pages/doctor/DietPlan';
+import QueueStatus from './pages/patient/QueueStatus';
+import AdminDashboard from './pages/admin/AdminDashboard';
 
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -17,6 +19,43 @@ function RequireAuth({ children, requiredRole, user, loadingAuth }) {
   if (loadingAuth) return null;
   if (!user) return <Navigate to="/" replace />;
   if (requiredRole && user.role !== requiredRole) return <Navigate to="/" replace />;
+  return children;
+}
+
+// Special guard to auto-redirect patients if they already have an active prescription
+function PatientFlowGuard({ children, user }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!user || user.role !== 'patient') return;
+
+    const email = (user.email || '').toLowerCase().trim();
+    const uid = user.uid;
+    const qEmail = query(collection(db, 'prescriptions'), where('patientEmail', '==', email), where('status', '==', 'active'));
+    const qUid = query(collection(db, 'prescriptions'), where('patientId', '==', uid), where('status', '==', 'active'));
+
+    const checkAndRedirect = (snapshot) => {
+      if (!snapshot.empty) {
+        // If they have an active prescription but are NOT on medications or recovery page
+        const isOnTreatment = location.pathname.includes('/patient/medications') || location.pathname.includes('/patient/recovery');
+        if (!isOnTreatment) {
+          console.log('PatientFlowGuard: Active treatment found. Redirecting to Medications...');
+          localStorage.removeItem('medai_current_queue');
+          navigate('/patient/medications', { replace: true });
+        }
+      }
+    };
+
+    const unsubEmail = onSnapshot(qEmail, checkAndRedirect);
+    const unsubUid = onSnapshot(qUid, checkAndRedirect);
+
+    return () => {
+      unsubEmail();
+      unsubUid();
+    };
+  }, [user, location.pathname, navigate]);
+
   return children;
 }
 
@@ -35,25 +74,32 @@ export default function App() {
           const localRole = localStorage.getItem('medai_role');
           if (docSnap.exists()) {
             const userData = docSnap.data();
-            setUser({
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              name: userData.name || firebaseUser.displayName,
-              // Use localRole if available (it was just set during login), otherwise db role, otherwise patient
-              role: localRole || userData.role || 'patient'
+            setUser({ 
+              id: firebaseUser.uid, 
+              uid: firebaseUser.uid, 
+              email: firebaseUser.email, 
+              name: userData.name || firebaseUser.displayName || firebaseUser.email?.split('@')[0], 
+              role: localRole || userData.role || 'patient' 
             });
           } else {
             console.warn('No user document found in Firestore. Defaulting to local role.');
             setUser({ 
+              id: firebaseUser.uid, 
               uid: firebaseUser.uid, 
               email: firebaseUser.email, 
-              name: firebaseUser.displayName, 
+              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0], 
               role: localRole || 'patient' 
             });
           }
         } catch (error) {
           console.error("Error fetching user data:", error);
-          setUser({ uid: firebaseUser.uid, email: firebaseUser.email, name: firebaseUser.displayName, role: 'patient' });
+          setUser({ 
+            id: firebaseUser.uid, 
+            uid: firebaseUser.uid, 
+            email: firebaseUser.email, 
+            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0], 
+            role: 'patient' 
+          });
         }
       } else {
         setUser(null);
@@ -66,6 +112,8 @@ export default function App() {
   const handleLogout = async () => {
     await signOut(auth);
     setSelectedDoctor(null);
+    localStorage.removeItem('medai_current_queue');
+    localStorage.removeItem('medai_role');
   };
 
 
@@ -84,14 +132,30 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={
-          user ? <Navigate to={user.role === 'patient' ? '/patient/match' : '/doctor/prescribe'} replace /> :
+          user ? <Navigate to={user.role === 'admin' ? '/admin/queue' : user.role === 'patient' ? '/patient/match' : '/doctor/prescribe'} replace /> :
             <LoginPage />
+        } />
+
+        {/* Admin Routes */}
+        <Route path="/admin/queue" element={
+          <RequireAuth requiredRole="admin" user={user} loadingAuth={loadingAuth}>
+            <AdminDashboard user={user} onLogout={handleLogout} />
+          </RequireAuth>
         } />
 
         {/* Patient Routes */}
         <Route path="/patient/match" element={
           <RequireAuth requiredRole="patient" user={user} loadingAuth={loadingAuth}>
-            <DoctorMatch user={user} onLogout={handleLogout} onSelectDoctor={setSelectedDoctor} />
+            <PatientFlowGuard user={user}>
+              <DoctorMatch user={user} onLogout={handleLogout} onSelectDoctor={setSelectedDoctor} />
+            </PatientFlowGuard>
+          </RequireAuth>
+        } />
+        <Route path="/patient/queue-status" element={
+          <RequireAuth requiredRole="patient" user={user} loadingAuth={loadingAuth}>
+            <PatientFlowGuard user={user}>
+              <QueueStatus user={user} onLogout={handleLogout} />
+            </PatientFlowGuard>
           </RequireAuth>
         } />
         <Route path="/patient/medications" element={
@@ -101,7 +165,7 @@ export default function App() {
         } />
         <Route path="/patient/recovery" element={
           <RequireAuth requiredRole="patient" user={user} loadingAuth={loadingAuth}>
-            <Recovery user={user} onLogout={handleLogout} selectedDoctor={selectedDoctor} />
+            <Recovery user={user} onLogout={handleLogout} />
           </RequireAuth>
         } />
 

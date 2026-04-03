@@ -4,7 +4,7 @@ import Navbar from '../../components/Navbar';
 import SOSButton from '../../components/SOSButton';
 import SOSModal from '../../components/SOSModal';
 import { DIET_PLANS } from '../../data/diets';
-import { getVideosForSpecialty, getVideoCategories, RECOVERY_VIDEOS } from '../../data/videos';
+import { getVideosForSpecialty, RECOVERY_VIDEOS } from '../../data/videos';
 
 export default function Recovery({ user, onLogout, selectedDoctor }) {
   const [showSOS, setShowSOS] = useState(false);

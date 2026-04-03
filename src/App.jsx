@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DoctorMatch from './pages/patient/DoctorMatch';
 import Medications from './pages/patient/Medications';
@@ -12,7 +12,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 
 // Route guard — must be declared outside App to avoid re-creation on each render
 function RequireAuth({ children, requiredRole, user, loadingAuth }) {

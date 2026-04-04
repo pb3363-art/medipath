@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { UtensilsCrossed, Dumbbell, PlayCircle, TrendingUp, X, Filter } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { UtensilsCrossed, Dumbbell, PlayCircle, TrendingUp, X } from 'lucide-react';
 import Navbar from '../../components/Navbar';
 import SOSButton from '../../components/SOSButton';
 import SOSModal from '../../components/SOSModal';
-import { DIET_PLANS } from '../../data/diets';
+import { db } from '../../lib/firebase';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { getVideosForSpecialty, RECOVERY_VIDEOS } from '../../data/videos';
 
 export default function Recovery({ user, onLogout, selectedDoctor }) {
@@ -11,24 +12,82 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
   const [activeVideoId, setActiveVideoId] = useState(null);
   const [videoFilter, setVideoFilter] = useState('All');
   const [exerciseDone, setExerciseDone] = useState([true, false, false]);
+  const [prescription, setPrescription] = useState(null);
+  const [loadingPlan, setLoadingPlan] = useState(true);
 
-  const specialty = selectedDoctor?.specialty || 'General Medicine';
-  const dietPlan = DIET_PLANS[specialty] || DIET_PLANS.default;
-  
-  // Get videos for this specialty, fall back to all if too few
-  let videos = getVideosForSpecialty(specialty);
+  useEffect(() => {
+    const email = (user?.email || '').toLowerCase().trim();
+    const uid = user?.uid;
+
+    if (!email && !uid) {
+      setPrescription(null);
+      setLoadingPlan(false);
+      return;
+    }
+
+    const q = query(collection(db, 'prescriptions'), where('status', '==', 'active'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const matched = snapshot.docs
+        .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+        .filter((presc) => {
+          const prescEmail = (presc.patientEmail || '').toLowerCase().trim();
+          const prescUid = presc.patientId || '';
+          return (email && prescEmail === email) || (uid && prescUid === uid);
+        });
+
+      const latestPrescription = matched.sort(
+        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      )[0] || null;
+
+      setPrescription(latestPrescription);
+      setLoadingPlan(false);
+    });
+
+    return () => unsubscribe();
+  }, [user?.email, user?.uid]);
+
+  const splitItems = (value) =>
+    (value || '')
+      .split(/\r?\n|,/) 
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const recommendedFoods = splitItems(prescription?.diet?.foods);
+  const avoidFoods = splitItems(prescription?.diet?.avoid);
+  const dietNotes = (prescription?.diet?.notes || '').trim();
+  const exerciseText = (prescription?.exercise || '').trim();
+
+  const specialty = selectedDoctor?.specialty || prescription?.doctorSpecialty || 'General Medicine';
+
+  let videos = [];
+  if (prescription?.recoveryVideos?.length) {
+    videos = RECOVERY_VIDEOS.filter((v) => prescription.recoveryVideos.includes(v.id));
+  }
+  if (videos.length === 0) {
+    videos = getVideosForSpecialty(specialty);
+  }
   if (videos.length < 4) {
     videos = RECOVERY_VIDEOS;
   }
-  
-  const categories = ['All', ...new Set(videos.map(v => v.category))];
-  const filteredVideos = videoFilter === 'All' ? videos : videos.filter(v => v.category === videoFilter);
+
+  const categories = ['All', ...new Set(videos.map((v) => v.category))];
+  const filteredVideos = videoFilter === 'All' ? videos : videos.filter((v) => v.category === videoFilter);
 
   const exercises = [
     { time: '7:00 AM', activity: 'Morning Walk', duration: '20 mins', intensity: 'Low' },
     { time: '11:00 AM', activity: 'Light Stretching', duration: '10 mins', intensity: 'Low' },
     { time: '5:00 PM', activity: 'Breathing Exercises', duration: '15 mins', intensity: 'Low' },
   ];
+
+  const maxRecoveryDays = prescription?.medications?.length
+    ? Math.max(...prescription.medications.map((m) => parseInt(m.days, 10) || 1))
+    : 0;
+  const currentRecoveryDay = Math.max(1, parseInt(prescription?.currentDay, 10) || 1);
+  const completedDays = maxRecoveryDays > 0 ? Math.min(currentRecoveryDay - 1, maxRecoveryDays) : 0;
+  const recoveryProgress = maxRecoveryDays > 0 ? Math.round((completedDays / maxRecoveryDays) * 100) : 0;
+  const recoveryStatus = maxRecoveryDays > 0
+    ? `Day ${Math.min(currentRecoveryDay, maxRecoveryDays)} of ${maxRecoveryDays} | Keep going!`
+    : 'Waiting for doctor treatment timeline.';
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -40,7 +99,6 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
           <p>Your personalized health journey</p>
         </div>
 
-        {/* Diet Plan */}
         <div className="med-card mb-6 fade-in" style={{ borderLeft: '4px solid var(--success)', padding: '28px' }}>
           <div className="flex items-center gap-3 mb-5">
             <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'var(--success-light)' }}>
@@ -49,41 +107,61 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
             <h2 className="text-xl font-bold">Diet Plan</h2>
           </div>
 
-          <div className="grid gap-8 mb-5" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <div>
-              <div className="text-sm font-bold mb-4 uppercase tracking-wider flex items-center gap-2" style={{ color: 'var(--success)' }}>
-                <span>✅</span> Recommended Foods
-              </div>
-              {dietPlan.foods.map((f, i) => (
-                <div key={i} className="flex items-center gap-3 py-3 text-sm"
-                  style={{ borderBottom: i < dietPlan.foods.length - 1 ? '1px solid var(--border-light)' : 'none' }}>
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--success)' }}></span>
-                  <span>{f}</span>
+          {loadingPlan ? (
+            <div className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading diet plan...</div>
+          ) : (
+            <div className="grid gap-8 mb-5" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <div>
+                <div className="text-sm font-bold mb-4 uppercase tracking-wider" style={{ color: 'var(--success)' }}>
+                  Recommended Foods
                 </div>
-              ))}
-            </div>
-            <div>
-              <div className="text-sm font-bold mb-4 uppercase tracking-wider flex items-center gap-2" style={{ color: 'var(--danger)' }}>
-                <span>❌</span> Avoid These
+                {recommendedFoods.length > 0 ? (
+                  recommendedFoods.map((food, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 py-3 text-sm"
+                      style={{ borderBottom: i < recommendedFoods.length - 1 ? '1px solid var(--border-light)' : 'none' }}
+                    >
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--success)' }}></span>
+                      <span>{food}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                    Your doctor has not added recommended foods yet.
+                  </div>
+                )}
               </div>
-              {dietPlan.avoid.map((f, i) => (
-                <div key={i} className="flex items-center gap-3 py-3 text-sm"
-                  style={{ borderBottom: i < dietPlan.avoid.length - 1 ? '1px solid var(--border-light)' : 'none' }}>
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--danger)' }}></span>
-                  <span>{f}</span>
-                </div>
-              ))}
-            </div>
-          </div>
 
-          <div className="p-4 rounded-xl text-sm flex items-start gap-3"
-            style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
-            <span className="text-lg">💡</span>
-            <span>{dietPlan.tip}</span>
+              <div>
+                <div className="text-sm font-bold mb-4 uppercase tracking-wider" style={{ color: 'var(--danger)' }}>
+                  Avoid These
+                </div>
+                {avoidFoods.length > 0 ? (
+                  avoidFoods.map((food, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 py-3 text-sm"
+                      style={{ borderBottom: i < avoidFoods.length - 1 ? '1px solid var(--border-light)' : 'none' }}
+                    >
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--danger)' }}></span>
+                      <span>{food}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                    Your doctor has not added avoid-list items yet.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="p-4 rounded-xl text-sm" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
+            {dietNotes || 'Doctor notes will appear here after your treatment plan is submitted.'}
           </div>
         </div>
 
-        {/* Exercise Plan */}
         <div className="med-card mb-6 fade-in" style={{ borderLeft: '4px solid var(--primary)', padding: '28px' }}>
           <div className="flex items-center gap-3 mb-5">
             <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'var(--primary-light)' }}>
@@ -92,20 +170,29 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
             <h2 className="text-xl font-bold">Exercise Plan</h2>
           </div>
 
+          {exerciseText ? (
+            <div className="p-4 rounded-lg mb-4 text-sm" style={{ background: 'var(--bg-section)', border: '1px solid var(--border)', lineHeight: 1.7 }}>
+              {exerciseText}
+            </div>
+          ) : null}
+
           <div className="flex flex-col gap-3">
             {exercises.map((e, i) => (
-              <div key={i} className="flex items-center gap-4 p-4 rounded-xl"
-                onClick={() => setExerciseDone(prev => prev.map((d, di) => di === i ? !d : d))}
+              <div
+                key={i}
+                className="flex items-center gap-4 p-4 rounded-xl"
+                onClick={() => setExerciseDone((prev) => prev.map((d, di) => (di === i ? !d : d)))}
                 style={{
                   background: exerciseDone[i] ? 'var(--success-light)' : 'white',
                   border: `2px solid ${exerciseDone[i] ? 'var(--success)' : 'var(--border)'}`,
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                }}>
-                <div className="text-2xl">{exerciseDone[i] ? '✅' : '⏱️'}</div>
+                }}
+              >
+                <div className="text-2xl">{exerciseDone[i] ? 'Done' : 'Pending'}</div>
                 <div className="flex-1">
                   <div className="font-bold mb-1">{e.activity}</div>
-                  <div className="text-sm" style={{ color: 'var(--text-muted)' }}>{e.time} · {e.duration}</div>
+                  <div className="text-sm" style={{ color: 'var(--text-muted)' }}>{e.time} | {e.duration}</div>
                 </div>
                 <span className="badge badge-primary" style={{ padding: '6px 12px' }}>{e.intensity}</span>
               </div>
@@ -113,7 +200,6 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
           </div>
         </div>
 
-        {/* Recovery Videos */}
         <div className="med-card mb-6 fade-in" style={{ borderLeft: '4px solid var(--warning)', padding: '28px' }}>
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
@@ -125,10 +211,11 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
             <span className="badge badge-neutral" style={{ padding: '6px 12px' }}>{filteredVideos.length} videos</span>
           </div>
 
-          {/* Category Filter */}
           <div className="flex gap-2 mb-5 overflow-x-auto pb-2">
-            {categories.map(cat => (
-              <button key={cat} className="btn btn-sm"
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                className="btn btn-sm"
                 onClick={() => setVideoFilter(cat)}
                 style={{
                   background: videoFilter === cat ? 'var(--warning)' : 'transparent',
@@ -137,14 +224,15 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
                   whiteSpace: 'nowrap',
                   padding: '8px 16px',
                   fontWeight: 500,
-                }}>
+                }}
+              >
                 {cat}
               </button>
             ))}
           </div>
 
           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
-            {filteredVideos.map(v => (
+            {filteredVideos.map((v) => (
               <div key={v.id} className="video-card">
                 {activeVideoId === v.id ? (
                   <div style={{ position: 'relative' }}>
@@ -156,13 +244,19 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen
                     ></iframe>
-                    <button className="btn btn-sm"
+                    <button
+                      className="btn btn-sm"
                       onClick={() => setActiveVideoId(null)}
                       style={{
-                        position: 'absolute', top: 12, right: 12,
-                        background: 'rgba(0,0,0,0.8)', color: 'white',
-                        borderRadius: '50%', padding: '6px',
-                      }}>
+                        position: 'absolute',
+                        top: 12,
+                        right: 12,
+                        background: 'rgba(0,0,0,0.8)',
+                        color: 'white',
+                        borderRadius: '50%',
+                        padding: '6px',
+                      }}
+                    >
                       <X size={16} />
                     </button>
                   </div>
@@ -176,11 +270,19 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
                     <button className="video-play-btn">
                       <PlayCircle size={32} />
                     </button>
-                    <span className="badge" style={{
-                      position: 'absolute', top: 10, right: 10,
-                      background: 'rgba(0,0,0,0.8)', color: 'white',
-                      padding: '4px 10px',
-                    }}>{v.duration}</span>
+                    <span
+                      className="badge"
+                      style={{
+                        position: 'absolute',
+                        top: 10,
+                        right: 10,
+                        background: 'rgba(0,0,0,0.8)',
+                        color: 'white',
+                        padding: '4px 10px',
+                      }}
+                    >
+                      {v.duration}
+                    </span>
                   </div>
                 )}
                 <div className="p-4">
@@ -198,13 +300,18 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
           </div>
         </div>
 
-        {/* Recovery Score */}
-        <div className="med-card fade-in text-center mb-6"
-          style={{ background: 'linear-gradient(135deg, var(--success-light) 0%, rgba(40,167,69,0.05) 100%)', border: '2px solid rgba(40,167,69,0.2)', padding: '32px' }}>
+        <div
+          className="med-card fade-in text-center mb-6"
+          style={{ background: 'linear-gradient(135deg, var(--success-light) 0%, rgba(40,167,69,0.05) 100%)', border: '2px solid rgba(40,167,69,0.2)', padding: '32px' }}
+        >
           <TrendingUp size={32} color="var(--success)" className="mx-auto mb-3" />
-          <div className="text-6xl font-black mb-2" style={{ color: 'var(--success)' }}>78%</div>
+          <div className="text-6xl font-black mb-2" style={{ color: 'var(--success)' }}>
+            {loadingPlan ? '...' : `${recoveryProgress}%`}
+          </div>
           <div className="font-bold text-lg mb-1">Recovery Progress</div>
-          <div className="text-sm" style={{ color: 'var(--text-muted)' }}>Day 5 of 14 · Keep going! 🎯</div>
+          <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            {loadingPlan ? 'Calculating your progress...' : recoveryStatus}
+          </div>
         </div>
       </div>
 

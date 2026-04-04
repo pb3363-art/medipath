@@ -24,41 +24,33 @@ export default function Medications({ user, onLogout, selectedDoctor }) {
 
     console.log('Listening for prescriptions for:', email, uid);
 
-    // We search by patientEmail as primary, but we'll also filter locally for patientId if possible
-    // To be perfectly robust, we'll listen to the whole collection for this user's email
     const q = query(
       collection(db, 'prescriptions'),
-      where('patientEmail', '==', email),
       where('status', '==', 'active')
     );
 
-    // Fallback query by UID
-    const qUid = query(
-      collection(db, 'prescriptions'),
-      where('patientId', '==', uid),
-      where('status', '==', 'active')
-    );
+    const handleSnapshot = (snapshot) => {
+      const activeForPatient = snapshot.docs
+        .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+        .filter((presc) => {
+          const prescEmail = (presc.patientEmail || '').toLowerCase().trim();
+          const prescUid = presc.patientId || '';
+          return (email && prescEmail === email) || (uid && prescUid === uid);
+        })
+        .map((presc) => ({
+          ...presc,
+          medications: (presc.medications || []).filter(
+            (med) => !/^demo\b/i.test((med.name || '').trim())
+          )
+        }));
 
-    const handleSnapshot = (snapshot, source) => {
-      setPrescriptions(prev => {
-        const newData = [...prev];
-        snapshot.forEach((docSnap) => {
-          if (!newData.some(p => p.id === docSnap.id)) {
-            newData.push({ id: docSnap.id, ...docSnap.data() });
-          }
-        });
-        return newData;
-      });
+      setPrescriptions(activeForPatient);
       setLoading(false);
     };
 
-    const unsubEmail = onSnapshot(q, (s) => handleSnapshot(s, 'email'));
-    const unsubUid = onSnapshot(qUid, (s) => handleSnapshot(s, 'uid'));
+    const unsubscribe = onSnapshot(q, (s) => handleSnapshot(s));
 
-    return () => {
-      unsubEmail();
-      unsubUid();
-    };
+    return () => unsubscribe();
   }, [user?.email, user?.uid]);
 
   // Notification setup and polling
@@ -155,10 +147,21 @@ export default function Medications({ user, onLogout, selectedDoctor }) {
     }
   };
 
-  // Compute compliance across all prescriptions
-  const allDoses = prescriptions.flatMap(p => p.medications.flatMap(m => m.taken || []));
-  const totalDoses = allDoses.length;
-  const takenDoses = allDoses.filter(Boolean).length;
+  // Compute compliance for today's active doses only
+  const todaysDoseStates = prescriptions.flatMap((presc) => {
+    const currentDay = presc.currentDay || 1;
+
+    return (presc.medications || []).flatMap((med) => {
+      const medDays = parseInt(med.days) || 1;
+      const isActiveToday = currentDay <= medDays;
+      if (!isActiveToday || !med.times || med.times.length === 0) return [];
+
+      return med.times.map((_, timeIndex) => Boolean(med.taken?.[timeIndex]));
+    });
+  });
+
+  const totalDoses = todaysDoseStates.length;
+  const takenDoses = todaysDoseStates.filter(Boolean).length;
   const compliance = totalDoses > 0 ? Math.round(takenDoses / totalDoses * 100) : 0;
 
   return (

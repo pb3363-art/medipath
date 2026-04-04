@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LogOut, Calendar, Clock, CheckCircle, Activity, UserSearch } from 'lucide-react';
 import { db } from '../../lib/firebase';
-import { collection, query, onSnapshot, doc, updateDoc, orderBy, addDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc, orderBy } from 'firebase/firestore';
 import { DOCTORS_DB } from '../../data/doctors';
 
 export default function AdminDashboard({ user, onLogout }) {
@@ -26,50 +26,12 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const handleAssignSlot = async (queueId) => {
     try {
-      const queueRecord = queues.find(q => q.id === queueId);
       const dummyTime = "11:45 AM";
 
       await updateDoc(doc(db, 'queue_entries', queueId), {
         status: 'scheduled',
         appointmentTime: dummyTime
       });
-
-      // Auto-generate a dummy prescription so patient can test the Medications portal
-      if (queueRecord) {
-        const patientEmail = (queueRecord.patientEmail || queueRecord.patientName || '').toLowerCase().trim();
-        console.log('Generating dummy prescription for:', patientEmail);
-
-        await addDoc(collection(db, 'prescriptions'), {
-          doctorId: queueRecord.doctorId,
-          doctorName: queueRecord.doctorName,
-          patientId: queueRecord.patientId, // Store UID for rock-solid linking
-          patientEmail: patientEmail,
-          patientName: queueRecord.patientName || 'Unknown Patient',
-          diagnosis: "Automated Demo Diagnosis",
-          symptoms: queueRecord.symptoms ? queueRecord.symptoms.join(', ') : "General",
-          createdAt: new Date().toISOString(),
-          status: 'active',
-          currentDay: 1,
-          medications: [
-            {
-              name: 'Demo Paracetamol 500mg',
-              dosage: '1 tab',
-              days: 3,
-              instruction: 'After meals',
-              times: ['09:00', '14:00', '21:00'],
-              taken: [false, false, false]
-            },
-            {
-              name: 'Demo Vitamin C',
-              dosage: '1 tab',
-              days: 3,
-              instruction: 'Empty stomach',
-              times: ['08:00'],
-              taken: [false]
-            }
-          ]
-        });
-      }
     } catch (err) {
       console.error(err);
       alert("Failed to assign slot");

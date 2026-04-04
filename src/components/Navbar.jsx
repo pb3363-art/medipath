@@ -13,7 +13,7 @@ export default function Navbar({ user, currentStep, onLogout }) {
           style={{ background: isDoctor ? 'var(--primary)' : 'var(--success)' }}>
           <Stethoscope size={18} color="white" />
         </div>
-        <span className="font-extrabold text-lg tracking-tight">MedAI</span>
+        <span className="font-extrabold text-lg tracking-tight">MediPath</span>
         <span className={`badge ${isDoctor ? 'badge-primary' : 'badge-success'}`}>
           {isDoctor ? 'Doctor Portal' : 'Patient Portal'}
         </span>
@@ -24,7 +24,7 @@ export default function Navbar({ user, currentStep, onLogout }) {
       <div className="flex items-center gap-3">
         <div className="flex flex-col items-end">
           <div className="text-sm font-bold leading-tight">{isDoctor ? 'Dr. ' : ''}{user.name}</div>
-          <div className="text-[10px] text-[var(--text-muted)] font-mono">{user.email}</div>
+          <div className="text-[10px] text-[var(--text-muted)] font-mono nav-user-email">{user.email}</div>
         </div>
         <button className="btn btn-ghost btn-sm" onClick={() => { onLogout(); navigate('/'); }}>
           <LogOut size={14} />

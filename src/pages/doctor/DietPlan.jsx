@@ -53,15 +53,15 @@ export default function DietPlan({ user, onLogout }) {
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <Navbar user={user} currentStep={3} onLogout={onLogout} />
 
-      <div style={{ maxWidth: 860, margin: '0 auto', padding: '28px 20px' }}>
+      <div className="page-container">
         <div className="section-header fade-in">
           <h1>Recovery & Diet Plan</h1>
           <p>Provide dietary guidelines and recovery instructions for the patient</p>
         </div>
 
         {/* Diet */}
-        <div className="med-card mb-5 fade-in" style={{ borderLeft: '4px solid var(--success)' }}>
-          <div className="flex items-center gap-2 mb-4">
+        <div className="med-card card-pad-md mb-5 fade-in" style={{ borderLeft: '4px solid var(--success)' }}>
+          <div className="card-head-left mb-4">
             <UtensilsCrossed size={18} color="var(--success)" />
             <h3 className="font-bold">Dietary Recommendations</h3>
           </div>
@@ -94,8 +94,8 @@ export default function DietPlan({ user, onLogout }) {
           </div>
         </div>
 
-        <div className="med-card mb-6 fade-in" style={{ borderLeft: '4px solid var(--primary)' }}>
-          <div className="flex items-center gap-2 mb-4">
+        <div className="med-card card-pad-md mb-6 fade-in" style={{ borderLeft: '4px solid var(--primary)' }}>
+          <div className="card-head-left mb-4">
             <Dumbbell size={18} color="var(--primary)" />
             <h3 className="font-bold">Exercise & Activity Plan</h3>
           </div>
@@ -105,8 +105,8 @@ export default function DietPlan({ user, onLogout }) {
         </div>
 
         {/* Recovery Videos */}
-        <div className="med-card mb-6 fade-in" style={{ borderLeft: '4px solid var(--warning)' }}>
-          <div className="flex items-center gap-2 mb-4">
+        <div className="med-card card-pad-md mb-6 fade-in" style={{ borderLeft: '4px solid var(--warning)' }}>
+          <div className="card-head-left mb-4">
             <PlayCircle size={18} color="var(--warning)" />
             <h3 className="font-bold">Recommended Recovery Videos</h3>
           </div>

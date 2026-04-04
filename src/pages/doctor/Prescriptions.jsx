@@ -1,20 +1,81 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, Plus, Trash2, ArrowRight, Save, UserSearch } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, ArrowRight, Save, UserSearch, Clock3, CheckCircle2 } from 'lucide-react';
 import Navbar from '../../components/Navbar';
 import SOSButton from '../../components/SOSButton';
 import SOSModal from '../../components/SOSModal';
 import { db } from '../../lib/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, onSnapshot, query, updateDoc, where, writeBatch } from 'firebase/firestore';
 
 export default function Prescriptions({ user, onLogout }) {
   const [saved, setSaved] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
   const [sosAlert, setSosAlert] = useState(false);
+  const [doctorQueue, setDoctorQueue] = useState([]);
+  const [selectedQueueId, setSelectedQueueId] = useState('');
   const navigate = useNavigate();
 
   const [localMeds, setLocalMeds] = useState([{ name: '', dosage: '', days: '', instruction: 'After meals' }]);
   const [localPatientInfo, setLocalPatientInfo] = useState({ email: '', name: '', diagnosis: '', symptoms: '' });
+
+  const normalizeDoctorName = (value = '') =>
+    value.toLowerCase().replace(/^dr\.?\s+/i, '').replace(/\s+/g, ' ').trim();
+
+  useEffect(() => {
+    const queueQuery = query(collection(db, 'queue_entries'));
+
+    const unsubscribe = onSnapshot(queueQuery, (snapshot) => {
+      const normalizedUserName = normalizeDoctorName(user?.name || user?.email || '');
+      const nextQueue = snapshot.docs
+        .map((entry) => ({ id: entry.id, ...entry.data() }))
+        .filter((entry) => {
+          if (entry.status !== 'scheduled') return false;
+
+          const entryDoctorId = entry.doctorId || '';
+          const entryDoctorEmail = (entry.doctorEmail || '').toLowerCase().trim();
+          const entryDoctorName = normalizeDoctorName(entry.doctorName || '');
+          const userEmail = (user?.email || '').toLowerCase().trim();
+          const userUid = user?.uid || '';
+
+          return (
+            entryDoctorId === userUid ||
+            entryDoctorEmail === userEmail ||
+            (normalizedUserName && entryDoctorName === normalizedUserName)
+          );
+        })
+        .sort((a, b) => {
+          const aTime = new Date(a.approvedAt || a.timestamp || 0).getTime();
+          const bTime = new Date(b.approvedAt || b.timestamp || 0).getTime();
+          return aTime - bTime;
+        });
+
+      setDoctorQueue(nextQueue);
+      setSelectedQueueId((current) => {
+        if (current && nextQueue.some((entry) => entry.id === current)) return current;
+        return nextQueue[0]?.id || '';
+      });
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const selectedQueuePatient = useMemo(
+    () => doctorQueue.find((entry) => entry.id === selectedQueueId) || null,
+    [doctorQueue, selectedQueueId]
+  );
+
+  useEffect(() => {
+    if (!selectedQueuePatient) return;
+
+    setLocalPatientInfo((prev) => ({
+      email: selectedQueuePatient.patientEmail || prev.email,
+      name: selectedQueuePatient.patientName || prev.name,
+      diagnosis: prev.diagnosis,
+      symptoms: Array.isArray(selectedQueuePatient.symptoms)
+        ? selectedQueuePatient.symptoms.join(', ')
+        : selectedQueuePatient.symptoms || prev.symptoms
+    }));
+  }, [selectedQueuePatient]);
 
   const addMed = () => setLocalMeds(prev => [...prev, { name: '', dosage: '', days: '', instruction: 'After meals' }]);
   const updateMed = (i, field, val) => {
@@ -35,14 +96,37 @@ export default function Prescriptions({ user, onLogout }) {
     setSaved(true);
 
     try {
+      const patientEmail = localPatientInfo.email.trim().toLowerCase();
+
+      // Archive any currently active prescriptions for this patient so the new doctor's plan is the only active one
+      const activeQ = query(
+        collection(db, 'prescriptions'),
+        where('patientEmail', '==', patientEmail),
+        where('status', '==', 'active')
+      );
+      const activeSnap = await getDocs(activeQ);
+      if (!activeSnap.empty) {
+        const batch = writeBatch(db);
+        activeSnap.docs.forEach((d) => {
+          batch.update(d.ref, {
+            status: 'archived',
+            archivedAt: new Date().toISOString(),
+            archiveReason: 'Replaced by new prescription'
+          });
+        });
+        await batch.commit();
+      }
+
       // Create a prescription document in Firestore
       const prescriptionData = {
         doctorId: user.uid,
         doctorName: user.name || user.email,
-        patientEmail: localPatientInfo.email.trim().toLowerCase(),
+        patientEmail: patientEmail,
         patientName: localPatientInfo.name.trim(),
+        patientId: selectedQueuePatient?.patientId || '',
         diagnosis: localPatientInfo.diagnosis.trim(),
         symptoms: localPatientInfo.symptoms.trim(),
+        queueEntryId: selectedQueuePatient?.id || '',
         medications: validMeds.map(m => ({
           name: m.name,
           dosage: m.dosage,
@@ -56,6 +140,16 @@ export default function Prescriptions({ user, onLogout }) {
       };
 
       const docRef = await addDoc(collection(db, 'prescriptions'), prescriptionData);
+
+      if (selectedQueuePatient?.id) {
+        await updateDoc(doc(db, 'queue_entries', selectedQueuePatient.id), {
+          status: 'completed',
+          prescriptionId: docRef.id,
+          prescriptionCreatedAt: new Date().toISOString(),
+          attendedByDoctorId: user.uid,
+          attendedByDoctorName: user.name || user.email
+        });
+      }
 
       // Navigate to timings page with the prescription ID
       setTimeout(() => {
@@ -74,14 +168,19 @@ export default function Prescriptions({ user, onLogout }) {
       {/* SOS Alert */}
       {sosAlert && (
         <div className="fade-in" style={{
-          position: 'fixed', top: 16, right: 16, zIndex: 1500, maxWidth: 340,
+          position: 'fixed', top: 16, right: 16, zIndex: 1500, maxWidth: 340, width: 'calc(100% - 32px)',
           background: 'var(--bg-white)', border: '2px solid var(--danger)', borderRadius: 'var(--radius-lg)',
           padding: '16px', boxShadow: 'var(--shadow-lg)',
         }}>
           <div className="flex items-start justify-between mb-2">
             <div className="font-bold text-sm" style={{ color: 'var(--danger)' }}>🚨 SOS Alert Received</div>
-            <button className="btn" onClick={() => setSosAlert(false)}
-              style={{ background: 'transparent', color: 'var(--text-muted)', fontSize: 14, padding: '0 4px' }}>✕</button>
+            <button
+              className="btn btn-ghost btn-sm btn-icon"
+              onClick={() => setSosAlert(false)}
+              style={{ color: 'var(--text-muted)', fontSize: 14 }}
+            >
+              ✕
+            </button>
           </div>
           <p className="text-sm mb-3" style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
             A patient has sent an emergency alert.
@@ -95,19 +194,78 @@ export default function Prescriptions({ user, onLogout }) {
 
       <Navbar user={user} currentStep={1} onLogout={onLogout} />
 
-      <div style={{ maxWidth: 860, margin: '0 auto', padding: '28px 20px' }}>
+      <div className="page-container">
         <div className="section-header fade-in">
           <h1>Write Prescription</h1>
-          <p>Enter patient details and prescribed medications</p>
+          <p>Review your accepted patients in queue order, then prescribe medications</p>
+        </div>
+
+        <div className="med-card card-pad-md mb-5 fade-in" style={{ borderLeft: '4px solid var(--warning)' }}>
+          <div className="card-head-left mb-4">
+            <Clock3 size={18} color="var(--warning)" />
+            <h3 className="font-bold">Accepted Patient Queue</h3>
+          </div>
+
+          {doctorQueue.length === 0 ? (
+            <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              No admin-approved patients are waiting for you right now.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {doctorQueue.map((queueItem, index) => {
+                const isActive = queueItem.id === selectedQueueId;
+                return (
+                  <button
+                    key={queueItem.id}
+                    type="button"
+                    className="text-left p-4 rounded-xl"
+                    onClick={() => setSelectedQueueId(queueItem.id)}
+                    style={{
+                      background: isActive ? 'rgba(14, 165, 233, 0.08)' : 'var(--bg-section)',
+                      border: isActive ? '1px solid var(--primary)' : '1px solid var(--border)',
+                      boxShadow: isActive ? 'var(--shadow-sm)' : 'none'
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <div className="font-bold">
+                        #{index + 1} {queueItem.patientName || queueItem.patientEmail || 'Unknown Patient'}
+                      </div>
+                      {isActive && (
+                        <span className="badge badge-primary">Selected</span>
+                      )}
+                    </div>
+                    <div className="text-sm flex flex-col gap-1" style={{ color: 'var(--text-muted)' }}>
+                      <div>{queueItem.patientEmail || 'No email provided'}</div>
+                      <div>Appointment: {queueItem.appointmentTime || 'Time not assigned'}</div>
+                      <div>
+                        Symptoms:{' '}
+                        {Array.isArray(queueItem.symptoms)
+                          ? queueItem.symptoms.join(', ')
+                          : queueItem.symptoms || 'Not recorded'}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Patient Info */}
-        <div className="med-card mb-5 fade-in" style={{ borderLeft: '4px solid var(--primary)' }}>
-          <div className="flex items-center gap-2 mb-4">
+        <div className="med-card card-pad-md mb-5 fade-in" style={{ borderLeft: '4px solid var(--primary)' }}>
+          <div className="card-head-left mb-4">
             <UserSearch size={18} color="var(--primary)" />
             <h3 className="font-bold">Patient Information</h3>
           </div>
-          <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          {selectedQueuePatient && (
+            <div className="mb-4 p-3 rounded-lg flex items-center gap-2" style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+              <CheckCircle2 size={16} color="var(--success)" />
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                Patient details loaded from the admin-approved doctor queue.
+              </span>
+            </div>
+          )}
+          <div className="grid-2">
             <div>
               <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Patient Email</label>
               <input value={localPatientInfo.email} onChange={e => setLocalPatientInfo(p => ({ ...p, email: e.target.value }))} placeholder="patient@example.com" />
@@ -117,7 +275,7 @@ export default function Prescriptions({ user, onLogout }) {
               <input value={localPatientInfo.name} onChange={e => setLocalPatientInfo(p => ({ ...p, name: e.target.value }))} placeholder="Full name" />
             </div>
           </div>
-          <div className="grid gap-4 mt-3" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <div className="grid-2 mt-3">
             <div>
               <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Diagnosis</label>
               <input value={localPatientInfo.diagnosis} onChange={e => setLocalPatientInfo(p => ({ ...p, diagnosis: e.target.value }))} placeholder="Primary diagnosis / condition" />
@@ -130,9 +288,9 @@ export default function Prescriptions({ user, onLogout }) {
         </div>
 
         {/* Medications */}
-        <div className="med-card mb-5 fade-in">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
+        <div className="med-card card-pad-md mb-5 fade-in">
+          <div className="card-head mb-4">
+            <div className="card-head-left">
               <ClipboardList size={18} color="var(--primary)" />
               <h3 className="font-bold">Medications</h3>
             </div>
@@ -147,13 +305,12 @@ export default function Prescriptions({ user, onLogout }) {
                 <div className="flex items-center justify-between mb-3">
                   <span className="badge badge-primary">Medicine #{i + 1}</span>
                   {localMeds.length > 1 && (
-                    <button className="btn btn-sm" onClick={() => removeMed(i)}
-                      style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '4px 10px' }}>
+                    <button className="btn btn-sm btn-soft-danger" onClick={() => removeMed(i)}>
                       <Trash2 size={12} /> Remove
                     </button>
                   )}
                 </div>
-                <div className="grid gap-3" style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr' }}>
+                <div className="meds-grid">
                   <div>
                     <label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Medicine Name</label>
                     <input value={med.name} onChange={e => updateMed(i, 'name', e.target.value)} placeholder="e.g. Paracetamol 500mg" />
@@ -192,3 +349,4 @@ export default function Prescriptions({ user, onLogout }) {
     </div>
   );
 }
+

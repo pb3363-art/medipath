@@ -43,7 +43,7 @@ export default function ChatPanel({ doctorName, isOpen, onClose }) {
             </div>
           </div>
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={onClose} style={{ padding: '4px 8px' }}>
+        <button className="btn btn-ghost btn-sm btn-icon" onClick={onClose}>
           <X size={16} />
         </button>
       </div>

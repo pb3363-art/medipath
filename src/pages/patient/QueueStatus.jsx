@@ -13,7 +13,7 @@ export default function QueueStatus({ user, onLogout }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const queueId = localStorage.getItem('medai_current_queue');
+    const queueId = localStorage.getItem('medipath_current_queue');
     if (!queueId) {
       navigate('/patient/match');
       return;
@@ -33,7 +33,8 @@ export default function QueueStatus({ user, onLogout }) {
   }, [navigate]);
 
   const handleProceed = () => {
-    localStorage.removeItem('medai_current_queue');
+    localStorage.removeItem('medipath_current_queue');
+    localStorage.removeItem('medipath_allow_new_appointment_flow');
     navigate('/patient/medications');
   };
 
@@ -66,8 +67,8 @@ export default function QueueStatus({ user, onLogout }) {
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <Navbar user={user} currentStep={2} onLogout={onLogout} />
 
-      <div style={{ maxWidth: 640, margin: '80px auto 0', padding: '0 20px' }} className="fade-in">
-        <div className="med-card text-center" style={{ padding: '48px 32px' }}>
+      <div className="page-container-narrow fade-in">
+        <div className="med-card card-pad-lg text-center">
           
           {isWaiting ? (
             <>
@@ -80,22 +81,23 @@ export default function QueueStatus({ user, onLogout }) {
                 Please wait while the scheduling administrator assigns your appointment slot.
               </p>
               
-              <div className="p-4 rounded-xl text-left bg-[var(--bg-section)] border border-[var(--border)] inline-block min-w-[280px] mb-6">
+              <div className="p-4 rounded-xl text-left bg-[var(--bg-section)] border border-[var(--border)] inline-block w-full max-w-[320px] mb-6">
                 <div className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold mb-1">Queue Entry Time</div>
                 <div className="font-medium">{new Date(queueData.timestamp).toLocaleTimeString()}</div>
               </div>
 
               <div className="flex flex-col gap-3 items-center">
-                <button 
-                  className="btn btn-outline" 
+                <button
+                  className="btn btn-outline"
                   onClick={() => window.location.reload()}
-                  style={{ color: 'var(--primary)', borderColor: 'var(--primary)', padding: '10px 24px' }}>
+                  style={{ color: 'var(--primary)', borderColor: 'var(--primary)' }}>
                   Check Status Again
                 </button>
                 <button 
                   className="btn btn-ghost btn-sm" 
                   onClick={() => {
-                    localStorage.removeItem('medai_current_queue');
+                    localStorage.removeItem('medipath_current_queue');
+                    localStorage.removeItem('medipath_allow_new_appointment_flow');
                     navigate('/patient/match');
                   }}
                   style={{ color: 'var(--text-muted)' }}>
@@ -113,13 +115,13 @@ export default function QueueStatus({ user, onLogout }) {
                 Your appointment with <strong>{queueData.doctorName}</strong> has been scheduled.
               </p>
               
-              <div className="p-5 rounded-2xl mb-8 border-2 border-[var(--success)] bg-white mx-auto inline-block min-w-[280px]">
+              <div className="p-5 rounded-2xl mb-8 border-2 border-[var(--success)] bg-white mx-auto inline-block w-full max-w-[320px]">
                 <div className="text-sm font-semibold mb-1" style={{ color: 'var(--success)' }}>Your Appointment Time</div>
                 <div className="text-3xl font-black">{queueData.appointmentTime}</div>
               </div>
 
               <div>
-                <button className="btn btn-lg btn-primary w-full max-w-[280px]" onClick={handleProceed} style={{ fontSize: '1.05rem', padding: '16px' }}>
+                <button className="btn btn-lg btn-primary w-full max-w-[280px]" onClick={handleProceed} style={{ fontSize: '1.05rem' }}>
                   Acknowledge & Proceed <ArrowRight size={20} />
                 </button>
               </div>
@@ -134,3 +136,4 @@ export default function QueueStatus({ user, onLogout }) {
     </div>
   );
 }
+

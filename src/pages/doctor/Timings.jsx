@@ -62,14 +62,14 @@ export default function Timings({ user, onLogout }) {
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <Navbar user={user} currentStep={2} onLogout={onLogout} />
 
-      <div style={{ maxWidth: 860, margin: '0 auto', padding: '28px 20px' }}>
+      <div className="page-container">
         <div className="section-header fade-in">
           <h1>Set Medication Timings</h1>
           <p>Configure exact reminder times for each medication</p>
         </div>
 
         {!prescriptionId && (
-          <div className="med-card mb-5 fade-in" style={{ borderLeft: '4px solid var(--warning)', padding: '20px' }}>
+          <div className="med-card card-pad-md mb-5 fade-in" style={{ borderLeft: '4px solid var(--warning)' }}>
             <p className="text-sm" style={{ color: 'var(--warning)' }}>
               ⚠️ No prescription found. Please <button onClick={() => navigate('/doctor/prescribe')} style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>write a prescription</button> first.
             </p>
@@ -80,9 +80,9 @@ export default function Timings({ user, onLogout }) {
           {meds.filter(m => m.name).map((med, i) => {
             const times = timings[med.name] || [''];
             return (
-              <div key={i} className="med-card fade-in" style={{ borderLeft: '4px solid var(--primary)', animationDelay: `${i * 0.1}s` }}>
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
+              <div key={i} className="med-card card-pad-md fade-in" style={{ borderLeft: '4px solid var(--primary)', animationDelay: `${i * 0.1}s` }}>
+                <div className="card-head mb-4">
+                  <div className="card-head-left">
                     <div className="w-10 h-10 rounded-lg flex items-center justify-center"
                       style={{ background: 'var(--primary-light)' }}>
                       <Pill size={18} color="var(--primary)" />
@@ -112,12 +112,11 @@ export default function Timings({ user, onLogout }) {
                             newTimes[ti] = e.target.value;
                             setMedTimes(med.name, newTimes);
                           }}
-                          style={{ paddingLeft: 36, width: 160 }}
+                          style={{ paddingLeft: 36, width: 'min(160px, 42vw)' }}
                         />
                       </div>
                       {times.length > 1 && (
-                        <button className="btn btn-sm" onClick={() => setMedTimes(med.name, times.filter((_, xi) => xi !== ti))}
-                          style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '8px 10px' }}>
+                        <button className="btn btn-sm btn-soft-danger" onClick={() => setMedTimes(med.name, times.filter((_, xi) => xi !== ti))}>
                           <X size={14} />
                         </button>
                       )}

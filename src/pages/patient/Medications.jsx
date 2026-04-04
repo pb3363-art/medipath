@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pill, Clock, CheckCircle2, Bell, MessageCircle, ArrowRight, Activity, Loader2 } from 'lucide-react';
+import { Pill, Clock, CheckCircle2, Bell, MessageCircle, ArrowRight, Activity, Loader2, History, UtensilsCrossed } from 'lucide-react';
 import Navbar from '../../components/Navbar';
 import SOSButton from '../../components/SOSButton';
 import SOSModal from '../../components/SOSModal';
@@ -37,6 +37,8 @@ export default function Medications({ user, onLogout, selectedDoctor }) {
           const prescUid = presc.patientId || '';
           return (email && prescEmail === email) || (uid && prescUid === uid);
         })
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+        .slice(0, 1)
         .map((presc) => ({
           ...presc,
           medications: (presc.medications || []).filter(
@@ -74,7 +76,7 @@ export default function Medications({ user, onLogout, selectedDoctor }) {
                 const key = `${p.id}-${mi}-${ti}-${today}`;
                 if (time === currentTime && !med.taken[ti] && !notifiedSet.current.has(key)) {
                   notifiedSet.current.add(key);
-                  new Notification('MedAI Reminder: Time for your medicine', {
+                  new Notification('MediPath Reminder: Time for your medicine', {
                     body: `Please take ${med.dosage} of ${med.name} (${med.instruction}).`,
                   });
                 }
@@ -163,17 +165,45 @@ export default function Medications({ user, onLogout, selectedDoctor }) {
   const totalDoses = todaysDoseStates.length;
   const takenDoses = todaysDoseStates.filter(Boolean).length;
   const compliance = totalDoses > 0 ? Math.round(takenDoses / totalDoses * 100) : 0;
+  const activePresc = prescriptions[0];
+
+  const splitItems = (value) =>
+    (value || '')
+      .split(/\r?\n|,/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const recommendedFoods = splitItems(activePresc?.diet?.foods);
+  const avoidFoods = splitItems(activePresc?.diet?.avoid);
+  const dietNotes = (activePresc?.diet?.notes || '').trim();
+
+  const handleBookNewAppointment = () => {
+    localStorage.removeItem('medipath_current_queue');
+    localStorage.setItem('medipath_allow_new_appointment_once', '1');
+    localStorage.setItem('medipath_allow_new_appointment_flow', '1');
+    navigate('/patient/match');
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <Navbar user={user} currentStep={2} onLogout={onLogout} />
 
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '28px 20px' }}>
+      <div className="page-container">
         {/* Header */}
         <div className="mb-8 fade-in">
-          <div className="section-header" style={{ marginBottom: '12px' }}>
-            <h1>Your Medications</h1>
-            <p>{selectedDoctor ? `Prescribed by Dr. ${selectedDoctor.name}` : 'Your active prescriptions'}</p>
+          <div className="card-head" style={{ marginBottom: '12px' }}>
+            <div className="section-header" style={{ marginBottom: 0 }}>
+              <h1>Your Medications</h1>
+              <p>{selectedDoctor ? `Prescribed by Dr. ${selectedDoctor.name}` : 'Your active prescriptions'}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button className="btn btn-outline btn-sm" onClick={() => navigate('/patient/history')}>
+                <History size={14} /> View Health History
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={handleBookNewAppointment}>
+                Book New Appointment
+              </button>
+            </div>
           </div>
         </div>
 
@@ -183,7 +213,7 @@ export default function Medications({ user, onLogout, selectedDoctor }) {
             <span className="ml-3" style={{ color: 'var(--text-muted)' }}>Loading prescriptions...</span>
           </div>
         ) : prescriptions.length === 0 ? (
-          <div className="med-card fade-in text-center" style={{ padding: '48px 24px' }}>
+          <div className="med-card card-center-lg fade-in text-center">
             <Pill size={48} style={{ color: 'var(--text-muted)', margin: '0 auto 16px' }} />
             <h3 className="font-bold mb-2">No Active Prescriptions</h3>
             <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
@@ -218,6 +248,56 @@ export default function Medications({ user, onLogout, selectedDoctor }) {
               </div>
             </div>
 
+            {/* Diet Plan */}
+            <div className="med-card mb-6 fade-in" style={{ borderLeft: '4px solid var(--success)' }}>
+              <div className="card-head-left mb-4">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'var(--success-light)' }}>
+                  <UtensilsCrossed size={18} color="var(--success)" />
+                </div>
+                <h3 className="font-bold">Diet Plan</h3>
+              </div>
+
+              <div className="grid-2 mb-4">
+                <div>
+                  <div className="text-xs font-semibold mb-2" style={{ color: 'var(--success)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                    Recommended Foods
+                  </div>
+                  {recommendedFoods.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                      {recommendedFoods.map((food, i) => (
+                        <div key={`food-${i}`} className="text-sm p-2 rounded-lg" style={{ background: 'var(--bg-section)' }}>
+                          {food}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm" style={{ color: 'var(--text-muted)' }}>No recommended foods provided yet.</div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="text-xs font-semibold mb-2" style={{ color: 'var(--danger)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                    Avoid
+                  </div>
+                  {avoidFoods.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                      {avoidFoods.map((food, i) => (
+                        <div key={`avoid-${i}`} className="text-sm p-2 rounded-lg" style={{ background: 'var(--bg-section)' }}>
+                          {food}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm" style={{ color: 'var(--text-muted)' }}>No avoid-list provided yet.</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg text-sm" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
+                {dietNotes || 'Diet notes will appear here when doctor provides them.'}
+              </div>
+            </div>
+
             {/* Prescription Cards */}
             {prescriptions.map((presc) => {
               const currentDay = presc.currentDay || 1;
@@ -227,8 +307,8 @@ export default function Medications({ user, onLogout, selectedDoctor }) {
 
               return (
               <div key={presc.id} className="mb-6">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="badge badge-primary">Dr. {presc.doctorName}</span>
                     <span className="badge badge-neutral">{presc.diagnosis}</span>
                   </div>
@@ -241,20 +321,18 @@ export default function Medications({ user, onLogout, selectedDoctor }) {
 
                 <div className={`flex flex-col gap-5 mb-4 ${isFinished ? 'opacity-60' : ''}`}>
                   {presc.medications.map((med, mi) => (
-                    <div key={mi} className="med-card fade-in" style={{ animationDelay: `${mi * 0.1}s`, padding: '24px' }}>
-                      <div className="flex items-start justify-between mb-5">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl flex items-center justify-center"
-                            style={{ background: 'var(--primary-light)' }}>
-                            <Pill size={22} color="var(--primary)" />
-                          </div>
-                          <div>
-                            <div className="font-bold text-lg mb-1">{med.name}</div>
-                            <div className="flex gap-2">
-                              <span className="badge badge-primary">{med.instruction}</span>
-                              <span className="badge badge-neutral">{med.days} days course</span>
-                              {med.dosage && <span className="badge badge-neutral">{med.dosage}</span>}
-                            </div>
+                    <div key={mi} className="med-card card-pad-md fade-in" style={{ animationDelay: `${mi * 0.1}s` }}>
+                      <div className="flex items-start gap-4 mb-5">
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center"
+                          style={{ background: 'var(--primary-light)' }}>
+                          <Pill size={22} color="var(--primary)" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-lg mb-1">{med.name}</div>
+                          <div className="meta-wrap">
+                            <span className="badge badge-primary">{med.instruction}</span>
+                            <span className="badge badge-neutral">{med.days} days course</span>
+                            {med.dosage && <span className="badge badge-neutral">{med.dosage}</span>}
                           </div>
                         </div>
                       </div>
@@ -288,7 +366,7 @@ export default function Medications({ user, onLogout, selectedDoctor }) {
 
                   {/* Complete Day Button */}
                   {!isFinished && allTakenToday && (
-                    <button className="btn btn-primary btn-full fade-in" onClick={() => advanceDay(presc.id)} style={{ padding: '16px', fontWeight: 'bold' }}>
+                    <button className="btn btn-primary btn-full fade-in" onClick={() => advanceDay(presc.id)} style={{ fontWeight: 'bold' }}>
                       Complete Day {currentDay} & Advance to Day {currentDay + 1} <ArrowRight size={18} />
                     </button>
                   )}
@@ -297,7 +375,7 @@ export default function Medications({ user, onLogout, selectedDoctor }) {
                       <div className="p-4 rounded-xl text-center" style={{ border: '2px solid rgba(40,167,69,0.2)', color: 'var(--success)', fontWeight: 'bold' }}>
                         Great job! You have fully completed the {maxDays}-day course for this prescription.
                       </div>
-                      <button className="btn btn-outline btn-full" onClick={() => archiveCourse(presc.id)} style={{ padding: '12px', color: 'var(--text-muted)', border: '2px dashed var(--border)' }}>
+                      <button className="btn btn-outline btn-full" onClick={() => archiveCourse(presc.id)} style={{ color: 'var(--text-muted)', border: '2px dashed var(--border)' }}>
                         Archive & Hide from Dashboard
                       </button>
                     </div>
@@ -313,11 +391,11 @@ export default function Medications({ user, onLogout, selectedDoctor }) {
         {prescriptions.length > 0 && (
           <div className="mt-8">
             {allCoursesFinished ? (
-              <button className="btn btn-success btn-lg btn-full fade-in" onClick={() => navigate('/patient/recovery')} style={{ padding: '16px', fontSize: '1.05rem', boxShadow: 'var(--shadow-lg)' }}>
+              <button className="btn btn-success btn-lg btn-full fade-in" onClick={() => navigate('/patient/recovery')} style={{ fontSize: '1.05rem', boxShadow: 'var(--shadow-lg)' }}>
                 All Courses Complete! Unlock Phase 3 <ArrowRight size={20} />
               </button>
             ) : (
-              <button className="btn btn-lg btn-full fade-in flex items-center justify-center gap-2" disabled style={{ padding: '16px', background: 'var(--bg-section)', color: 'var(--text-muted)', border: '2px dashed var(--border)', cursor: 'not-allowed' }}>
+              <button className="btn btn-lg btn-full fade-in flex items-center justify-center gap-2" disabled style={{ background: 'var(--bg-section)', color: 'var(--text-muted)', border: '2px dashed var(--border)', cursor: 'not-allowed' }}>
                 🔒 Complete your full prescribed course to unlock Phase 3
               </button>
             )}

@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DoctorMatch from './pages/patient/DoctorMatch';
+import SlotPreference from './pages/patient/SlotPreference';
 import Medications from './pages/patient/Medications';
 import Recovery from './pages/patient/Recovery';
+import HealthHistory from './pages/patient/HealthHistory';
 import Prescriptions from './pages/doctor/Prescriptions';
 import Timings from './pages/doctor/Timings';
 import DietPlan from './pages/doctor/DietPlan';
@@ -26,6 +28,11 @@ function RequireAuth({ children, requiredRole, user, loadingAuth }) {
 function PatientFlowGuard({ children, user }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const allowMatchOnceRef = useRef(false);
+
+  const NEW_APPOINTMENT_ONCE_KEY = 'medipath_allow_new_appointment_once';
+  const NEW_APPOINTMENT_FLOW_KEY = 'medipath_allow_new_appointment_flow';
+  const CURRENT_QUEUE_KEY = 'medipath_current_queue';
 
   useEffect(() => {
     if (!user || user.role !== 'patient') return;
@@ -37,11 +44,46 @@ function PatientFlowGuard({ children, user }) {
 
     const checkAndRedirect = (snapshot) => {
       if (!snapshot.empty) {
+        const isOnMatchPage = location.pathname.includes('/patient/match');
+        const isOnSelectSlotPage = location.pathname.includes('/patient/select-slot');
+        const isOnQueueStatusPage = location.pathname.includes('/patient/queue-status');
+        const isOnAppointmentFlow = isOnMatchPage || isOnSelectSlotPage || isOnQueueStatusPage;
+        const hasQueueInProgress = !!localStorage.getItem(CURRENT_QUEUE_KEY);
+        const hasOneTimeOverride = localStorage.getItem(NEW_APPOINTMENT_ONCE_KEY) === '1';
+        const hasFlowOverride = localStorage.getItem(NEW_APPOINTMENT_FLOW_KEY) === '1';
+
+        if (isOnMatchPage && (hasOneTimeOverride || allowMatchOnceRef.current || hasFlowOverride)) {
+          if (hasOneTimeOverride) {
+            localStorage.removeItem(NEW_APPOINTMENT_ONCE_KEY);
+            localStorage.setItem(NEW_APPOINTMENT_FLOW_KEY, '1');
+          }
+          allowMatchOnceRef.current = true;
+          return;
+        }
+
+        if (
+          hasFlowOverride &&
+          (
+            isOnMatchPage ||
+            isOnSelectSlotPage ||
+            (isOnQueueStatusPage && hasQueueInProgress)
+          )
+        ) {
+          return;
+        }
+
         // If they have an active prescription but are NOT on medications or recovery page
         const isOnTreatment = location.pathname.includes('/patient/medications') || location.pathname.includes('/patient/recovery');
-        if (!isOnTreatment) {
+        if (!isOnTreatment && !isOnAppointmentFlow) {
           console.log('PatientFlowGuard: Active treatment found. Redirecting to Medications...');
-          localStorage.removeItem('medai_current_queue');
+          localStorage.removeItem(CURRENT_QUEUE_KEY);
+          navigate('/patient/medications', { replace: true });
+          return;
+        }
+
+        if (!isOnTreatment && isOnAppointmentFlow) {
+          localStorage.removeItem(NEW_APPOINTMENT_FLOW_KEY);
+          localStorage.removeItem(CURRENT_QUEUE_KEY);
           navigate('/patient/medications', { replace: true });
         }
       }
@@ -71,7 +113,7 @@ export default function App() {
         try {
           const docRef = doc(db, 'users', firebaseUser.uid);
           const docSnap = await getDoc(docRef);
-          const localRole = localStorage.getItem('medai_role');
+          const localRole = localStorage.getItem('medipath_role');
           if (docSnap.exists()) {
             const userData = docSnap.data();
             setUser({ 
@@ -112,8 +154,10 @@ export default function App() {
   const handleLogout = async () => {
     await signOut(auth);
     setSelectedDoctor(null);
-    localStorage.removeItem('medai_current_queue');
-    localStorage.removeItem('medai_role');
+    localStorage.removeItem('medipath_current_queue');
+    localStorage.removeItem('medipath_allow_new_appointment_once');
+    localStorage.removeItem('medipath_allow_new_appointment_flow');
+    localStorage.removeItem('medipath_role');
   };
 
 
@@ -122,7 +166,7 @@ export default function App() {
       <div className="h-screen w-screen flex items-center justify-center" style={{ background: 'var(--bg-main)' }}>
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 rounded-full border-4 border-[var(--primary)] border-t-transparent animate-spin"></div>
-          <div className="text-[var(--text-muted)] font-semibold text-sm">Initializing MedAI...</div>
+          <div className="text-[var(--text-muted)] font-semibold text-sm">Initializing MediPath...</div>
         </div>
       </div>
     );
@@ -158,6 +202,13 @@ export default function App() {
             </PatientFlowGuard>
           </RequireAuth>
         } />
+        <Route path="/patient/select-slot" element={
+          <RequireAuth requiredRole="patient" user={user} loadingAuth={loadingAuth}>
+            <PatientFlowGuard user={user}>
+              <SlotPreference user={user} onLogout={handleLogout} onSelectDoctor={setSelectedDoctor} />
+            </PatientFlowGuard>
+          </RequireAuth>
+        } />
         <Route path="/patient/medications" element={
           <RequireAuth requiredRole="patient" user={user} loadingAuth={loadingAuth}>
             <Medications user={user} onLogout={handleLogout} selectedDoctor={selectedDoctor} />
@@ -166,6 +217,11 @@ export default function App() {
         <Route path="/patient/recovery" element={
           <RequireAuth requiredRole="patient" user={user} loadingAuth={loadingAuth}>
             <Recovery user={user} onLogout={handleLogout} />
+          </RequireAuth>
+        } />
+        <Route path="/patient/history" element={
+          <RequireAuth requiredRole="patient" user={user} loadingAuth={loadingAuth}>
+            <HealthHistory user={user} onLogout={handleLogout} />
           </RequireAuth>
         } />
 
@@ -192,3 +248,4 @@ export default function App() {
     </BrowserRouter>
   );
 }
+

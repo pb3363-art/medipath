@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { UtensilsCrossed, Dumbbell, PlayCircle, TrendingUp, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Dumbbell, PlayCircle, TrendingUp, X } from 'lucide-react';
 import Navbar from '../../components/Navbar';
 import SOSButton from '../../components/SOSButton';
 import SOSModal from '../../components/SOSModal';
@@ -14,6 +15,7 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
   const [exerciseDone, setExerciseDone] = useState([true, false, false]);
   const [prescription, setPrescription] = useState(null);
   const [loadingPlan, setLoadingPlan] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const email = (user?.email || '').toLowerCase().trim();
@@ -46,15 +48,6 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
     return () => unsubscribe();
   }, [user?.email, user?.uid]);
 
-  const splitItems = (value) =>
-    (value || '')
-      .split(/\r?\n|,/) 
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-  const recommendedFoods = splitItems(prescription?.diet?.foods);
-  const avoidFoods = splitItems(prescription?.diet?.avoid);
-  const dietNotes = (prescription?.diet?.notes || '').trim();
   const exerciseText = (prescription?.exercise || '').trim();
 
   const specialty = selectedDoctor?.specialty || prescription?.doctorSpecialty || 'General Medicine';
@@ -89,82 +82,26 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
     ? `Day ${Math.min(currentRecoveryDay, maxRecoveryDays)} of ${maxRecoveryDays} | Keep going!`
     : 'Waiting for doctor treatment timeline.';
 
+  const handleCreateNewAppointment = () => {
+    localStorage.removeItem('medipath_current_queue');
+    localStorage.setItem('medipath_allow_new_appointment_once', '1');
+    localStorage.setItem('medipath_allow_new_appointment_flow', '1');
+    navigate('/patient/match');
+  };
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <Navbar user={user} currentStep={3} onLogout={onLogout} />
 
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '28px 20px' }}>
+      <div className="page-container">
         <div className="section-header fade-in">
           <h1>Recovery Plan</h1>
           <p>Your personalized health journey</p>
         </div>
 
-        <div className="med-card mb-6 fade-in" style={{ borderLeft: '4px solid var(--success)', padding: '28px' }}>
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'var(--success-light)' }}>
-              <UtensilsCrossed size={22} color="var(--success)" />
-            </div>
-            <h2 className="text-xl font-bold">Diet Plan</h2>
-          </div>
-
-          {loadingPlan ? (
-            <div className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading diet plan...</div>
-          ) : (
-            <div className="grid gap-8 mb-5" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              <div>
-                <div className="text-sm font-bold mb-4 uppercase tracking-wider" style={{ color: 'var(--success)' }}>
-                  Recommended Foods
-                </div>
-                {recommendedFoods.length > 0 ? (
-                  recommendedFoods.map((food, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-3 py-3 text-sm"
-                      style={{ borderBottom: i < recommendedFoods.length - 1 ? '1px solid var(--border-light)' : 'none' }}
-                    >
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--success)' }}></span>
-                      <span>{food}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                    Your doctor has not added recommended foods yet.
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <div className="text-sm font-bold mb-4 uppercase tracking-wider" style={{ color: 'var(--danger)' }}>
-                  Avoid These
-                </div>
-                {avoidFoods.length > 0 ? (
-                  avoidFoods.map((food, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-3 py-3 text-sm"
-                      style={{ borderBottom: i < avoidFoods.length - 1 ? '1px solid var(--border-light)' : 'none' }}
-                    >
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--danger)' }}></span>
-                      <span>{food}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                    Your doctor has not added avoid-list items yet.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="p-4 rounded-xl text-sm" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
-            {dietNotes || 'Doctor notes will appear here after your treatment plan is submitted.'}
-          </div>
-        </div>
-
-        <div className="med-card mb-6 fade-in" style={{ borderLeft: '4px solid var(--primary)', padding: '28px' }}>
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'var(--primary-light)' }}>
+        <div className="med-card card-pad-lg mb-6 fade-in" style={{ borderLeft: '4px solid var(--primary)' }}>
+          <div className="card-head-left mb-5">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-light)' }}>
               <Dumbbell size={22} color="var(--primary)" />
             </div>
             <h2 className="text-xl font-bold">Exercise Plan</h2>
@@ -189,26 +126,29 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
                   transition: 'all 0.2s',
                 }}
               >
-                <div className="text-2xl">{exerciseDone[i] ? 'Done' : 'Pending'}</div>
+                <div
+                  className="w-3 h-3 rounded-full flex-shrink-0"
+                  style={{ background: exerciseDone[i] ? 'var(--success)' : 'var(--text-muted)', opacity: exerciseDone[i] ? 1 : 0.5 }}
+                />
                 <div className="flex-1">
                   <div className="font-bold mb-1">{e.activity}</div>
                   <div className="text-sm" style={{ color: 'var(--text-muted)' }}>{e.time} | {e.duration}</div>
                 </div>
-                <span className="badge badge-primary" style={{ padding: '6px 12px' }}>{e.intensity}</span>
+                <span className="badge badge-primary">{e.intensity}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="med-card mb-6 fade-in" style={{ borderLeft: '4px solid var(--warning)', padding: '28px' }}>
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,193,7,0.1)' }}>
+        <div className="med-card card-pad-lg mb-6 fade-in" style={{ borderLeft: '4px solid var(--warning)' }}>
+          <div className="card-head mb-5">
+            <div className="card-head-left">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,193,7,0.1)' }}>
                 <PlayCircle size={22} color="var(--warning)" />
               </div>
               <h2 className="text-xl font-bold">Video Library</h2>
             </div>
-            <span className="badge badge-neutral" style={{ padding: '6px 12px' }}>{filteredVideos.length} videos</span>
+            <span className="badge badge-neutral">{filteredVideos.length} videos</span>
           </div>
 
           <div className="flex gap-2 mb-5 overflow-x-auto pb-2">
@@ -222,7 +162,6 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
                   color: videoFilter === cat ? 'white' : 'var(--text-secondary)',
                   border: `2px solid ${videoFilter === cat ? 'var(--warning)' : 'var(--border)'}`,
                   whiteSpace: 'nowrap',
-                  padding: '8px 16px',
                   fontWeight: 500,
                 }}
               >
@@ -313,6 +252,13 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
             {loadingPlan ? 'Calculating your progress...' : recoveryStatus}
           </div>
         </div>
+
+        <button
+          className="btn btn-primary btn-lg btn-full fade-in"
+          onClick={handleCreateNewAppointment}
+        >
+          Create New Appointment
+        </button>
       </div>
 
       <SOSButton onPress={() => setShowSOS(true)} />

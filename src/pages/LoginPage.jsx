@@ -26,7 +26,7 @@ export default function LoginPage() {
 
     try {
       // Save role to localStorage so App.jsx doesn't suffer a db race condition on route change
-      localStorage.setItem('medai_role', role);
+      localStorage.setItem('medipath_role', role);
       if (isLogin) {
         const userCred = await signInWithEmailAndPassword(auth, email, password);
         // Ensure role in DB matches selected prototype role
@@ -58,7 +58,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      localStorage.setItem('medai_role', role);
+      localStorage.setItem('medipath_role', role);
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
 
@@ -99,7 +99,7 @@ export default function LoginPage() {
               <Stethoscope size={24} color="white" />
             </div>
             <div>
-              <h1 className="text-3xl font-black text-white" style={{ letterSpacing: '-0.03em' }}>MedAI</h1>
+              <h1 className="text-3xl font-black text-white" style={{ letterSpacing: '-0.03em' }}>MediPath</h1>
               <div className="text-xs text-white/60 font-semibold tracking-widest uppercase">Clinical Decision Support</div>
             </div>
           </div>
@@ -144,15 +144,14 @@ export default function LoginPage() {
       <div className="login-form-section">
         <div style={{ width: '100%', maxWidth: 420 }} className="fade-in">
           <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-1">{isLogin ? 'Sign in to MedAI' : 'Create an Account'}</h2>
+            <h2 className="text-2xl font-bold mb-1">{isLogin ? 'Sign in to MediPath' : 'Create an Account'}</h2>
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              {isLogin ? 'Access your healthcare portal' : 'Join the MedAI healthcare network'}
+              {isLogin ? 'Access your healthcare portal' : 'Join the MediPath healthcare network'}
             </p>
           </div>
 
           {/* Role Toggle */}
-          <div className="flex gap-2 mb-6 p-1 rounded-xl"
-            style={{ background: 'var(--bg-section)', border: '1px solid var(--border)' }}>
+          <div className="role-toggle">
             {[
               { val: 'patient', icon: <User size={16} />, label: 'Patient' },
               { val: 'doctor', icon: <Stethoscope size={16} />, label: 'Doctor' },

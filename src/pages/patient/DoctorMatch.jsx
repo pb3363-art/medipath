@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Star, MapPin, Award, Users, ChevronRight, Plus, X } from 'lucide-react';
+import { Search, Star, MapPin, Award, Plus, X } from 'lucide-react';
 import Navbar from '../../components/Navbar';
 import SOSButton from '../../components/SOSButton';
 import SOSModal from '../../components/SOSModal';
 import { SYMPTOM_DOCTOR_MAP, SYMPTOM_CATEGORIES } from '../../data/symptoms';
 import { matchDoctors } from '../../utils/bayesian';
-import { db } from '../../lib/firebase';
-import { collection, addDoc } from 'firebase/firestore';
 
 export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
   const [selectedSymptoms, setSelectedSymptoms] = useState([]);
@@ -19,7 +17,7 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (localStorage.getItem('medai_current_queue')) {
+    if (localStorage.getItem('medipath_current_queue')) {
       navigate('/patient/queue-status');
       return;
     }
@@ -73,41 +71,22 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
 
   const selectDoctor = async (doc) => {
     setLoadingDoctor(true);
-    try {
-      const queueData = {
-        patientId: user?.uid || 'unknown',
-        patientEmail: (user?.email || '').toLowerCase(),
-        patientName: user?.name || user?.email || 'Unknown Patient',
-        doctorId: doc.id,
-        doctorName: doc.name,
-        status: 'waiting',
-        timestamp: new Date().toISOString(),
-        symptoms: selectedSymptoms
-      };
-      const docRef = await addDoc(collection(db, 'queue_entries'), queueData);
-      localStorage.setItem('medai_current_queue', docRef.id);
-      
-      onSelectDoctor(doc);
-      navigate('/patient/queue-status');
-    } catch (err) {
-      console.error(err);
-      alert('Error joining queue');
-      setLoadingDoctor(false);
-    }
+    onSelectDoctor(doc);
+    navigate('/patient/select-slot', { state: { doctor: doc, symptoms: selectedSymptoms } });
   };
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <Navbar user={user} currentStep={1} onLogout={onLogout} />
 
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '28px 20px' }}>
+      <div className="page-container">
         <div className="section-header fade-in">
           <h1>Find Your Specialist</h1>
           <p>Select your symptoms — our AI matches you with the best available doctor.</p>
         </div>
 
         {/* Symptom Selector */}
-        <div className="med-card mb-6 fade-in" style={{ padding: '32px' }}>
+        <div className="med-card card-pad-lg mb-6 fade-in">
           <h3 className="font-bold text-sm uppercase tracking-wider mb-5" style={{ color: 'var(--text-muted)', letterSpacing: '2px' }}>
             Select Symptoms
           </h3>
@@ -122,7 +101,6 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
                   color: activeCategory === cat ? 'white' : 'var(--text-secondary)',
                   border: `2px solid ${activeCategory === cat ? 'var(--primary)' : 'var(--border)'}`,
                   whiteSpace: 'nowrap',
-                  padding: '8px 16px',
                   fontWeight: 500,
                   borderRadius: '8px',
                 }}>
@@ -136,11 +114,9 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
             {(SYMPTOM_CATEGORIES[activeCategory] || []).map(s => {
               const active = selectedSymptoms.includes(s);
               return (
-                <button key={s} className="btn"
+                <button key={s} className="btn btn-pill"
                   onClick={() => toggleSymptom(s)}
                   style={{
-                    padding: '12px 24px',
-                    borderRadius: '25px',
                     background: active ? 'var(--primary)' : 'transparent',
                     color: active ? 'white' : 'var(--text-secondary)',
                     border: `2px solid ${active ? 'var(--primary)' : 'var(--border)'}`,
@@ -155,7 +131,7 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
           </div>
 
           {/* Custom Symptom Input */}
-          <div className="flex gap-3 mb-5">
+          <div className="input-action-row mb-5">
             <input
               value={customSymptom}
               onChange={e => setCustomSymptom(e.target.value)}
@@ -172,11 +148,9 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
               }}
             />
             <button
-              className="btn btn-primary"
+              className="btn btn-primary btn-pill"
               onClick={addCustomSymptom}
               style={{
-                padding: '12px 28px',
-                borderRadius: '25px',
                 fontWeight: 600,
               }}>
               Add
@@ -216,7 +190,6 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
           disabled={!selectedSymptoms.length || searching}
           style={{
             opacity: selectedSymptoms.length ? 1 : 0.5,
-            padding: '16px',
             fontSize: '1rem',
           }}>
           {searching ? (
@@ -233,8 +206,8 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
 
             <div className="flex flex-col gap-4">
               {matchedDoctors.map((doc, i) => (
-                <div key={doc.id} className={`doctor-card ${i === 0 ? 'best-match' : ''}`}
-                  style={{ animationDelay: `${i * 0.05}s`, padding: '24px', position: 'relative' }}>
+                <div key={doc.id} className={`doctor-card card-pad-md ${i === 0 ? 'best-match' : ''}`}
+                  style={{ animationDelay: `${i * 0.05}s`, position: 'relative' }}>
                   {i === 0 && (
                     <span className="badge badge-primary" style={{
                       position: 'absolute', top: -10, left: 20,
@@ -245,7 +218,7 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
                     }}>⭐ Best Match</span>
                   )}
 
-                  <div className="flex gap-4 items-center justify-center">
+                  <div className="doctor-result-row">
                     {/* Avatar */}
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-lg flex-shrink-0"
                       style={{
@@ -256,7 +229,7 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
                     </div>
 
                     {/* Info */}
-                    <div className="flex-1 min-w-0" style={{ maxWidth: '500px' }}>
+                    <div className="flex-1 min-w-0">
                       <div className="font-bold text-lg mb-1">{doc.name}</div>
                       <div className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>
                         {doc.specialty}
@@ -283,12 +256,12 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
                     </div>
 
                     {/* Score + Select */}
-                    <div className="text-center flex-shrink-0">
+                    <div className="doctor-score-col flex-shrink-0">
                       <div className="text-3xl font-black mb-1" style={{ color: doc.score > 80 ? 'var(--success)' : 'var(--primary)' }}>
                         {doc.score}%
                       </div>
                       <div className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>match</div>
-                      <button className="btn btn-primary" onClick={() => selectDoctor(doc)} disabled={loadingDoctor} style={{ padding: '8px 20px' }}>
+                      <button className="btn btn-primary" onClick={() => selectDoctor(doc)} disabled={loadingDoctor}>
                         {loadingDoctor ? 'Wait...' : 'Select'}
                       </button>
                     </div>
@@ -305,3 +278,4 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
     </div>
   );
 }
+

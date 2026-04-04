@@ -19,7 +19,7 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (localStorage.getItem('medai_current_queue')) {
+    if (localStorage.getItem('medipath_current_queue')) {
       navigate('/patient/queue-status');
     }
   }, [navigate]);
@@ -64,7 +64,7 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
         symptoms: selectedSymptoms
       };
       const docRef = await addDoc(collection(db, 'queue_entries'), queueData);
-      localStorage.setItem('medai_current_queue', docRef.id);
+      localStorage.setItem('medipath_current_queue', docRef.id);
       
       onSelectDoctor(doc);
       navigate('/patient/queue-status');
@@ -284,3 +284,4 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
     </div>
   );
 }
+

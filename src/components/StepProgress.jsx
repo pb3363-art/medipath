@@ -7,7 +7,7 @@ export default function StepProgress({ current, role }) {
   const steps = role === 'doctor' ? DOCTOR_STEPS : PATIENT_STEPS;
 
   return (
-    <div className="step-bar" style={{ padding: '0 20px' }}>
+    <div className="step-bar">
       {steps.map((label, i) => {
         const idx = i + 1;
         const done = current > idx;

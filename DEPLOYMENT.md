@@ -1,180 +1,143 @@
-# MedAI - Deployment Guide
+# MediPath Deployment Guide
 
-## Build Status
-✅ Production build successful
-✅ Build size: ~310 KB (gzipped: ~94 KB)
-✅ Deployment configurations ready
+## Recommended Path: Vercel + GitHub
 
-## Quick Deploy Options
+This project is a Vite single-page app and is ready to deploy on Vercel.
 
-### Option 1: Vercel (Recommended - Fastest)
+Current project settings:
 
-1. **Install Vercel CLI** (if not already installed):
+- Framework: `Vite`
+- Build command: `npm run build`
+- Output directory: `dist`
+- SPA routing: handled by `vercel.json`
+
+## Before You Deploy
+
+1. Install dependencies locally:
+   ```bash
+   npm install
+   ```
+
+2. Test the production build:
+   ```bash
+   npm run build
+   ```
+
+3. Make sure Firebase is configured.
+
+This app reads Firebase config from Vite environment variables first, with the current values used as fallback. For production, set the variables in Vercel so deployment is explicit and easy to maintain.
+
+## Required Environment Variables
+
+Add these in Vercel under Project Settings -> Environment Variables:
+
+```env
+VITE_FIREBASE_API_KEY=your_api_key_here
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_MEASUREMENT_ID=G-your_measurement_id
+```
+
+For local development, copy `.env.example` to `.env` and fill in the same values.
+
+## Option 1: Deploy from GitHub
+
+This is the best option if you want automatic redeploys after every push.
+
+1. Push this repo to GitHub.
+2. Open https://vercel.com/new
+3. Import your GitHub repository.
+4. In the Vercel setup screen, confirm:
+   - Framework Preset: `Vite`
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+5. Add the Firebase environment variables.
+6. Click `Deploy`.
+
+After the first deployment, every push to your selected branch will trigger a new deployment automatically.
+
+## Option 2: Deploy with Vercel CLI
+
+1. Install the CLI:
    ```bash
    npm install -g vercel
    ```
 
-2. **Deploy from the medai folder**:
+2. Run deployment from the project root:
    ```bash
-   cd claude/medai
+   cd d:\medipath
    vercel
    ```
 
-3. **Follow the prompts**:
-   - Login to Vercel (creates account if needed)
-   - Confirm project settings
-   - Deploy!
+3. Answer the prompts:
+   - Set up and deploy: `Y`
+   - Link to existing project: choose as needed
+   - Project name: your choice
 
-4. **Your app will be live at**: `https://your-project-name.vercel.app`
-
-**Vercel Dashboard**: https://vercel.com/dashboard
-
----
-
-### Option 2: Netlify
-
-1. **Install Netlify CLI** (if not already installed):
+4. For production deployment:
    ```bash
-   npm install -g netlify-cli
+   vercel --prod
    ```
 
-2. **Deploy from the medai folder**:
-   ```bash
-   cd claude/medai
-   netlify deploy --prod
-   ```
+5. Add environment variables if Vercel asks, or add them later in the dashboard.
 
-3. **Follow the prompts**:
-   - Login to Netlify
-   - Create new site or link existing
-   - Publish directory: `dist`
+## Why Routing Works on Refresh
 
-4. **Your app will be live at**: `https://your-site-name.netlify.app`
+This repository already includes [`vercel.json`](/d:/medipath/vercel.json), which rewrites all routes to `index.html`. That is required because this app uses React Router in the browser.
 
-**Netlify Dashboard**: https://app.netlify.com/
+## Quick Checklist
 
----
+- `npm install` completed
+- `npm run build` passes
+- Firebase environment variables added in Vercel
+- Firebase Authentication allowed domains updated
+- Firestore rules allow your deployed app to access the data it needs
 
-### Option 3: Manual Deploy (Drag & Drop)
+## Important Firebase Step
 
-#### Vercel:
-1. Go to https://vercel.com/new
-2. Drag and drop the `dist` folder
-3. Done!
+If you use Firebase Authentication, add your deployed Vercel domain in Firebase Console:
 
-#### Netlify:
-1. Go to https://app.netlify.com/drop
-2. Drag and drop the `dist` folder
-3. Done!
+1. Go to Firebase Console
+2. Open Authentication
+3. Open Settings or Authorized Domains
+4. Add:
+   - `your-project.vercel.app`
+   - Your custom domain, if you use one
 
----
-
-## GitHub Integration (Recommended for Continuous Deployment)
-
-### Setup Git Repository:
-```bash
-cd claude/medai
-git init
-git add .
-git commit -m "Initial commit - MedAI v1.0"
-```
-
-### Push to GitHub:
-1. Create a new repository on GitHub
-2. Push your code:
-   ```bash
-   git remote add origin https://github.com/YOUR_USERNAME/medai.git
-   git branch -M main
-   git push -u origin main
-   ```
-
-### Connect to Vercel/Netlify:
-1. Go to Vercel or Netlify dashboard
-2. Click "Import Project" or "New Site from Git"
-3. Select your GitHub repository
-4. Configure:
-   - Build command: `npm run build`
-   - Output directory: `dist`
-5. Deploy!
-
-**Benefits**: Every push to main branch auto-deploys!
-
----
-
-## Environment Variables (For Future Backend Integration)
-
-When you add a backend, create `.env` file:
-```env
-VITE_API_URL=https://your-api-url.com
-VITE_FIREBASE_KEY=your-firebase-key
-```
-
-Add to Vercel/Netlify dashboard under "Environment Variables"
-
----
-
-## Custom Domain Setup
-
-### Vercel:
-1. Go to Project Settings → Domains
-2. Add your custom domain
-3. Update DNS records as instructed
-
-### Netlify:
-1. Go to Site Settings → Domain Management
-2. Add custom domain
-3. Update DNS records as instructed
-
----
-
-## Performance Optimization
-
-Current build is already optimized:
-- ✅ Code splitting enabled
-- ✅ CSS minified
-- ✅ Assets compressed
-- ✅ Tree shaking applied
-
----
-
-## Deployment Checklist
-
-- [x] Production build successful
-- [x] No console errors
-- [x] All routes working (React Router configured)
-- [x] Images and assets loading
-- [x] Responsive design tested
-- [ ] Choose deployment platform
-- [ ] Deploy!
-- [ ] Test live site
-- [ ] Share URL with stakeholders
-
----
+If you skip this, Google sign-in or other auth flows may fail in production.
 
 ## Troubleshooting
 
-**Issue**: Routes not working (404 on refresh)
-**Solution**: The `vercel.json` and `netlify.toml` files handle this with SPA redirects
+Build fails on Vercel:
+- Check that `npm run build` works locally first.
+- Confirm all `VITE_...` environment variables are present in Vercel.
 
-**Issue**: Build fails
-**Solution**: Run `npm install` and `npm run build` locally first to check for errors
+App loads but refresh on inner routes shows 404:
+- Confirm [`vercel.json`](/d:/medipath/vercel.json) is present in the repo root.
 
-**Issue**: Assets not loading
-**Solution**: Check that base path is correct in `vite.config.js`
+Firebase auth works locally but not on Vercel:
+- Add the Vercel domain to Firebase Authorized Domains.
 
----
+Firestore requests fail in production:
+- Review your Firestore security rules and make sure the production domain and authenticated users are allowed.
 
-## Next Steps After Deployment
+## Custom Domain
 
-1. ✅ Share the live URL
-2. 📊 Set up analytics (Google Analytics, Vercel Analytics)
-3. 🔍 Monitor performance (Lighthouse scores)
-4. 🐛 Collect user feedback
-5. 🚀 Plan Phase 2 (Database integration)
+To use your own domain:
 
----
+1. Open your Vercel project
+2. Go to Settings -> Domains
+3. Add the custom domain
+4. Update DNS records as Vercel instructs
+5. Add the custom domain to Firebase Authorized Domains too
 
-**Need Help?**
-- Vercel Docs: https://vercel.com/docs
-- Netlify Docs: https://docs.netlify.com
-- Vite Docs: https://vitejs.dev/guide/static-deploy.html
+## Useful Commands
+
+```bash
+npm run dev
+npm run build
+npm run preview
+```

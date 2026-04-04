@@ -62,7 +62,7 @@ export default function AdminDashboard({ user, onLogout }) {
     id: d.id,
     name: d.name,
     specialty: d.specialty || d.specialization,
-    waitCount: doctorLoad[d.id] || 0
+    waitCount: doctorLoad[d.id] || 0,
   })).sort((a, b) => b.waitCount - a.waitCount).slice(0, 8);
 
   return (

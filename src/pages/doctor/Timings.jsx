@@ -76,7 +76,7 @@ export default function Timings({ user, onLogout }) {
           </div>
         )}
 
-        <div className="flex flex-col gap-4 mb-6">
+        <div className="flex flex-col gap-8 mb-8">
           {meds.filter(m => m.name).map((med, i) => {
             const times = timings[med.name] || [''];
             return (

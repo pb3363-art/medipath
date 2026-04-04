@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Star, MapPin, Award, Plus, X } from 'lucide-react';
+import { Search, Star, MapPin, Award, Plus, X, Loader2, Stethoscope, Activity } from 'lucide-react';
 import Navbar from '../../components/Navbar';
 import SOSButton from '../../components/SOSButton';
 import SOSModal from '../../components/SOSModal';
@@ -11,45 +11,27 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
   const [selectedSymptoms, setSelectedSymptoms] = useState([]);
   const [matchedDoctors, setMatchedDoctors] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [loadingDoctor, setLoadingDoctor] = useState(false);
   const [customSymptom, setCustomSymptom] = useState('');
   const [showSOS, setShowSOS] = useState(false);
   const [activeCategory, setActiveCategory] = useState('General');
+
   const navigate = useNavigate();
 
   useEffect(() => {
     if (localStorage.getItem('medipath_current_queue')) {
       navigate('/patient/queue-status');
-      return;
     }
-
-    // Check if user already got past Phase 1 and has medications
-    // const checkUserPrescriptions = async () => {
-    //   if (user?.email) {
-    //     try {
-    //       const q = query(
-    //         collection(db, 'prescriptions'),
-    //         where('patientEmail', '==', user.email.toLowerCase()),
-    //         where('status', '==', 'active')
-    //       );
-    //       const snap = await getDocs(q);
-    //       if (!snap.empty) {
-    //         navigate('/patient/medications');
-    //       }
-    //     } catch (e) {
-    //       console.error('Error checking active prescriptions:', e);
-    //     }
-    //   }
-    // };
-    // checkUserPrescriptions();
-  }, [navigate, user?.email]);
+  }, [navigate]);
 
   const toggleSymptom = (s) => {
     setSelectedSymptoms(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
   };
 
   const addCustomSymptom = () => {
-    if (customSymptom.trim() && !selectedSymptoms.includes(customSymptom.trim())) {
-      setSelectedSymptoms(prev => [...prev, customSymptom.trim()]);
+    const trimmed = customSymptom.trim();
+    if (trimmed && !selectedSymptoms.includes(trimmed)) {
+      setSelectedSymptoms(prev => [...prev, trimmed]);
       setCustomSymptom('');
     }
   };
@@ -61,69 +43,102 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
       const matched = await matchDoctors(selectedSymptoms, SYMPTOM_DOCTOR_MAP);
       setMatchedDoctors(matched);
     } catch (err) {
-      console.error("Match error:", err);
+      console.error('Match error:', err);
     } finally {
       setSearching(false);
     }
   };
 
-  const [loadingDoctor, setLoadingDoctor] = useState(false);
-
-  const selectDoctor = async (doc) => {
+  const selectDoctor = (doc) => {
     setLoadingDoctor(true);
     onSelectDoctor(doc);
     navigate('/patient/select-slot', { state: { doctor: doc, symptoms: selectedSymptoms } });
   };
+
+  const categories = Object.keys(SYMPTOM_CATEGORIES);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <Navbar user={user} currentStep={1} onLogout={onLogout} />
 
       <div className="page-container">
-        <div className="section-header fade-in">
-          <h1>Find Your Specialist</h1>
-          <p>Select your symptoms — our AI matches you with the best available doctor.</p>
+
+        {/* Hero Header */}
+        <div className="section-header fade-in" style={{ marginBottom: '48px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: 18,
+              background: 'linear-gradient(135deg, var(--primary) 0%, #7C3AED 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 8px 24px rgba(79,70,229,0.3)', flexShrink: 0,
+            }}>
+              <Stethoscope size={26} color="white" />
+            </div>
+            <div>
+              <h1 style={{ fontSize: '2.5rem', letterSpacing: '-0.04em', marginBottom: 6 }}>
+                Find Your Specialist
+              </h1>
+              <p style={{ color: 'var(--text-muted)', fontSize: '1rem', margin: 0 }}>
+                Describe your symptoms — our AI matches you with the best available doctor.
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Symptom Selector */}
-        <div className="med-card card-pad-lg mb-6 fade-in">
-          <h3 className="font-bold text-sm uppercase tracking-wider mb-5" style={{ color: 'var(--text-muted)', letterSpacing: '2px' }}>
-            Select Symptoms
-          </h3>
+        {/* Symptom Selector Card */}
+        <div className="med-card card-pad-md fade-in">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 12 }}>
+            <h2 style={{ fontSize: '1.35rem', margin: 0 }}>Select Symptoms</h2>
+          </div>
 
           {/* Category Tabs */}
-          <div className="flex gap-2 mb-5 overflow-x-auto pb-2">
-            {Object.keys(SYMPTOM_CATEGORIES).map(cat => (
-              <button key={cat} className="btn btn-sm"
+          <div style={{ display: 'flex', gap: 10, marginBottom: 24, overflowX: 'auto', paddingBottom: 6 }}>
+            {categories.map(cat => (
+              <button
+                key={cat}
                 onClick={() => setActiveCategory(cat)}
                 style={{
-                  background: activeCategory === cat ? 'var(--primary)' : 'transparent',
+                  padding: '8px 20px',
+                  borderRadius: 40,
+                  border: activeCategory === cat ? '2px solid var(--primary)' : '2px solid var(--border)',
+                  background: activeCategory === cat ? 'var(--primary)' : 'var(--bg-section)',
                   color: activeCategory === cat ? 'white' : 'var(--text-secondary)',
-                  border: `2px solid ${activeCategory === cat ? 'var(--primary)' : 'var(--border)'}`,
+                  fontFamily: 'var(--font-heading)',
+                  fontWeight: 700,
+                  fontSize: '0.875rem',
                   whiteSpace: 'nowrap',
-                  fontWeight: 500,
-                  borderRadius: '8px',
-                }}>
+                  cursor: 'pointer',
+                  transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)',
+                }}
+              >
                 {cat}
               </button>
             ))}
           </div>
 
           {/* Symptom Pills */}
-          <div className="flex flex-wrap gap-3 mb-5">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 28 }}>
             {(SYMPTOM_CATEGORIES[activeCategory] || []).map(s => {
               const active = selectedSymptoms.includes(s);
               return (
-                <button key={s} className="btn btn-pill"
+                <button
+                  key={s}
                   onClick={() => toggleSymptom(s)}
                   style={{
-                    background: active ? 'var(--primary)' : 'transparent',
-                    color: active ? 'white' : 'var(--text-secondary)',
-                    border: `2px solid ${active ? 'var(--primary)' : 'var(--border)'}`,
-                    fontWeight: 500,
+                    padding: '10px 22px',
+                    borderRadius: 40,
+                    border: active ? '2px solid var(--primary)' : '2px solid var(--border)',
+                    background: active ? 'var(--primary)' : 'white',
+                    color: active ? 'white' : 'var(--text-primary)',
+                    fontWeight: 600,
                     fontSize: '0.9rem',
-                    transition: 'all 0.2s',
-                  }}>
+                    cursor: 'pointer',
+                    transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    boxShadow: active ? '0 4px 12px rgba(79,70,229,0.25)' : 'var(--shadow-sm)',
+                    transform: active ? 'scale(1.04)' : 'scale(1)',
+                  }}
+                >
                   {active && '✓ '}{s}
                 </button>
               );
@@ -131,52 +146,46 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
           </div>
 
           {/* Custom Symptom Input */}
-          <div className="input-action-row mb-5">
+          <div style={{ display: 'flex', gap: 12, marginBottom: selectedSymptoms.length ? 24 : 0 }}>
             <input
               value={customSymptom}
               onChange={e => setCustomSymptom(e.target.value)}
-              placeholder="Add custom symptom..."
+              placeholder="Add a custom symptom..."
               onKeyDown={e => e.key === 'Enter' && addCustomSymptom()}
-              style={{
-                flex: 1,
-                padding: '12px 20px',
-                borderRadius: '25px',
-                border: '2px solid var(--border)',
-                background: 'transparent',
-                color: 'var(--text-primary)',
-                fontSize: '0.9rem',
-              }}
+              style={{ flex: 1, borderRadius: 40 }}
             />
-            <button
-              className="btn btn-primary btn-pill"
-              onClick={addCustomSymptom}
-              style={{
-                fontWeight: 600,
-              }}>
-              Add
+            <button className="btn btn-outline" onClick={addCustomSymptom} style={{ borderRadius: 40, whiteSpace: 'nowrap' }}>
+              <Plus size={16} /> Add
             </button>
           </div>
 
           {/* Selected Summary */}
           {selectedSymptoms.length > 0 && (
-            <div className="p-4 rounded-xl" style={{ background: 'rgba(0,102,204,0.08)', border: '2px solid rgba(0,102,204,0.15)' }}>
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>Selected:</span>
-                <span className="badge badge-primary">{selectedSymptoms.length}</span>
+            <div style={{
+              padding: '20px 24px',
+              borderRadius: 16,
+              background: 'linear-gradient(135deg, var(--primary-light) 0%, rgba(237,233,254,0.5) 100%)',
+              border: '2px solid rgba(79,70,229,0.15)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <Activity size={16} color="var(--primary)" />
+                <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '0.9rem', color: 'var(--primary-strong)' }}>
+                  {selectedSymptoms.length} symptom{selectedSymptoms.length > 1 ? 's' : ''} selected
+                </span>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 {selectedSymptoms.map(s => (
-                  <span key={s} className="badge badge-primary flex items-center gap-2"
-                    style={{
-                      padding: '8px 14px',
-                      fontSize: '0.85rem',
-                      borderRadius: '20px',
-                      fontWeight: 600,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                    }}>
+                  <span key={s} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '7px 16px',
+                    background: 'var(--primary)',
+                    color: 'white',
+                    borderRadius: 40,
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                  }}>
                     {s}
-                    <X size={14} className="cursor-pointer" onClick={() => toggleSymptom(s)} />
+                    <X size={14} style={{ cursor: 'pointer', opacity: 0.8 }} onClick={() => toggleSymptom(s)} />
                   </span>
                 ))}
               </div>
@@ -184,16 +193,15 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
           )}
         </div>
 
-        {/* Search Button */}
-        <button className="btn btn-primary btn-lg btn-full mb-8 fade-in"
+        {/* Search CTA */}
+        <button
+          className="btn btn-primary btn-lg btn-full fade-in"
           onClick={searchDoctors}
           disabled={!selectedSymptoms.length || searching}
-          style={{
-            opacity: selectedSymptoms.length ? 1 : 0.5,
-            fontSize: '1rem',
-          }}>
+          style={{ fontSize: '1.05rem' }}
+        >
           {searching ? (
-            <><span className="spinner"></span> Running AI Analysis...</>
+            <><Loader2 size={20} className="animate-spin" /> Running AI Analysis...</>
           ) : (
             <><Search size={20} /> Find Best Matched Doctors</>
           )}
@@ -202,73 +210,116 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
         {/* Results */}
         {matchedDoctors.length > 0 && (
           <div className="fade-in">
-            <h3 className="font-bold text-lg mb-5">Recommended Doctors</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32, marginTop: 8 }}>
+              <h2 style={{ fontSize: '1.6rem', margin: 0 }}>Matched Doctors</h2>
+              <span className="badge badge-neutral">{matchedDoctors.length} results</span>
+            </div>
 
-            <div className="flex flex-col gap-4">
+            <div>
               {matchedDoctors.map((doc, i) => (
-                <div key={doc.id} className={`doctor-card card-pad-md ${i === 0 ? 'best-match' : ''}`}
-                  style={{ animationDelay: `${i * 0.05}s`, position: 'relative' }}>
+                <div
+                  key={doc.id}
+                  className={`doctor-card card-pad-md fade-in ${i === 0 ? 'best-match' : ''}`}
+                  style={{ animationDelay: `${i * 0.06}s`, position: 'relative' }}
+                >
                   {i === 0 && (
-                    <span className="badge badge-primary" style={{
-                      position: 'absolute', top: -10, left: 20,
-                      background: 'var(--primary)', color: 'white',
-                      padding: '6px 14px',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                    }}>⭐ Best Match</span>
+                    <div style={{
+                      position: 'absolute', top: -14, left: 24,
+                      background: 'linear-gradient(135deg, var(--primary) 0%, #7C3AED 100%)',
+                      color: 'white',
+                      padding: '5px 16px',
+                      borderRadius: 40,
+                      fontSize: '0.78rem',
+                      fontFamily: 'var(--font-heading)',
+                      fontWeight: 800,
+                      letterSpacing: '0.02em',
+                      boxShadow: '0 4px 12px rgba(79,70,229,0.35)',
+                    }}>
+                      ⭐ Best Match
+                    </div>
                   )}
 
-                  <div className="doctor-result-row">
+                  <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
                     {/* Avatar */}
-                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-lg flex-shrink-0"
-                      style={{
-                        background: i === 0 ? 'var(--primary)' : 'var(--bg-section)',
-                        color: i === 0 ? 'white' : 'var(--text-secondary)',
-                      }}>
+                    <div style={{
+                      width: 72, height: 72, borderRadius: 20, flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontFamily: 'var(--font-heading)', fontWeight: 900, fontSize: '1.3rem',
+                      background: i === 0
+                        ? 'linear-gradient(135deg, var(--primary) 0%, #7C3AED 100%)'
+                        : 'var(--bg-section)',
+                      color: i === 0 ? 'white' : 'var(--text-secondary)',
+                      boxShadow: i === 0 ? '0 8px 20px rgba(79,70,229,0.25)' : 'none',
+                    }}>
                       {doc.avatar}
                     </div>
 
                     {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-lg mb-1">{doc.name}</div>
-                      <div className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: '1.2rem', letterSpacing: '-0.02em', marginBottom: 4 }}>
+                        {doc.name}
+                      </div>
+                      <div style={{ color: 'var(--primary-strong)', fontWeight: 700, fontSize: '0.9rem', marginBottom: 12 }}>
                         {doc.specialty}
                       </div>
-
-                      <div className="flex flex-wrap gap-3 text-sm mb-3" style={{ color: 'var(--text-muted)' }}>
-                        <span className="flex items-center gap-1">
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: 14 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <MapPin size={14} /> {doc.city}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Star size={14} color="var(--warning)" fill="var(--warning)" /> {doc.rating}
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Star size={14} color="#F59E0B" fill="#F59E0B" /> {doc.rating}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Award size={14} /> {doc.yearsExperience} years
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Award size={14} /> {doc.yearsExperience} yrs exp
                         </span>
                       </div>
-
-                      <div className="flex gap-2 flex-wrap">
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <span className={`badge ${doc.available ? 'badge-success' : 'badge-danger'}`}>
-                          {doc.available ? '● Available Now' : '● Busy'}
+                          {doc.available ? '● Available Now' : '● Unavailable'}
                         </span>
                         <span className="badge badge-neutral">₹{doc.consultationFee}</span>
+                        {doc.qualifications && (
+                          <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>
+                            {doc.qualifications.split(',')[0]}
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    {/* Score + Select */}
-                    <div className="doctor-score-col flex-shrink-0">
-                      <div className="text-3xl font-black mb-1" style={{ color: doc.score > 80 ? 'var(--success)' : 'var(--primary)' }}>
+                    {/* Score + CTA */}
+                    <div style={{ textAlign: 'center', minWidth: 130, flexShrink: 0 }}>
+                      <div style={{
+                        fontFamily: 'var(--font-heading)',
+                        fontSize: '3rem', fontWeight: 900, letterSpacing: '-0.05em', lineHeight: 1,
+                        color: doc.score > 80 ? 'var(--success)' : 'var(--primary)',
+                        marginBottom: 4,
+                      }}>
                         {doc.score}%
                       </div>
-                      <div className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>match</div>
-                      <button className="btn btn-primary" onClick={() => selectDoctor(doc)} disabled={loadingDoctor}>
-                        {loadingDoctor ? 'Wait...' : 'Select'}
+                      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 16 }}>
+                        match score
+                      </div>
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => selectDoctor(doc)}
+                        disabled={loadingDoctor || !doc.available}
+                        style={{ width: '100%' }}
+                      >
+                        {loadingDoctor ? 'Loading...' : 'Select Doctor'}
                       </button>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {matchedDoctors.length === 0 && !searching && selectedSymptoms.length > 0 && (
+          <div className="med-card fade-in" style={{ textAlign: 'center', padding: '60px 40px' }}>
+            <Stethoscope size={48} color="var(--text-muted)" style={{ margin: '0 auto 20px' }} />
+            <h3 style={{ marginBottom: 10 }}>No Results Found</h3>
+            <p style={{ color: 'var(--text-muted)' }}>Try selecting different symptoms or adding a custom one.</p>
           </div>
         )}
       </div>
@@ -278,4 +329,3 @@ export default function DoctorMatch({ user, onLogout, onSelectDoctor }) {
     </div>
   );
 }
-

@@ -12,7 +12,6 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
   const [showSOS, setShowSOS] = useState(false);
   const [activeVideoId, setActiveVideoId] = useState(null);
   const [videoFilter, setVideoFilter] = useState('All');
-  const [exerciseDone, setExerciseDone] = useState([true, false, false]);
   const [prescription, setPrescription] = useState(null);
   const [loadingPlan, setLoadingPlan] = useState(true);
   const navigate = useNavigate();
@@ -48,7 +47,7 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
     return () => unsubscribe();
   }, [user?.email, user?.uid]);
 
-  const exerciseText = (prescription?.exercise || '').trim();
+
 
   const specialty = selectedDoctor?.specialty || prescription?.doctorSpecialty || 'General Medicine';
 
@@ -66,11 +65,15 @@ export default function Recovery({ user, onLogout, selectedDoctor }) {
   const categories = ['All', ...new Set(videos.map((v) => v.category))];
   const filteredVideos = videoFilter === 'All' ? videos : videos.filter((v) => v.category === videoFilter);
 
+  const exerciseText = (prescription?.exercise || '').trim();
+
   const exercises = [
     { time: '7:00 AM', activity: 'Morning Walk', duration: '20 mins', intensity: 'Low' },
     { time: '11:00 AM', activity: 'Light Stretching', duration: '10 mins', intensity: 'Low' },
     { time: '5:00 PM', activity: 'Breathing Exercises', duration: '15 mins', intensity: 'Low' },
   ];
+  
+  const [exerciseDone, setExerciseDone] = useState([true, false, false]);
 
   const maxRecoveryDays = prescription?.medications?.length
     ? Math.max(...prescription.medications.map((m) => parseInt(m.days, 10) || 1))
